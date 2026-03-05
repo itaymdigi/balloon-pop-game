@@ -308,7 +308,8 @@ function drawPlayer() {
   // torso
   ctx.fillStyle = COLORS[charIdx % COLORS.length];
   ctx.beginPath();
-  ctx.roundRect(-22, 10, 44, 42, 8);
+  // rounded rect polyfill (roundRect not in all browsers)
+  (function(x,y,w,h,r){ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);ctx.lineTo(x+r,y+h);ctx.arcTo(x,y+h,x,y+h-r,r);ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);}(-22,10,44,42,8));
   ctx.fill();
   // head
   drawAvatar(CHARS[charIdx], 0, -16, 28, ctx);
@@ -744,9 +745,8 @@ function drawCloud(x, y, r) {
 
 // ─── LOOP ─────────────────────────────────────────────────────────────────────
 function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
+  requestAnimationFrame(loop); // schedule next frame first so errors don't kill the loop
+  try { update(); draw(); } catch(e) { console.error('loop error:', e); }
 }
 
 // ─── INPUT ────────────────────────────────────────────────────────────────────
