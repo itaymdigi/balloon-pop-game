@@ -101,13 +101,34 @@
 // ── CONSTANTS ────────────────────────────────────────────────────────────────
 const CHARS  = ['adiel','itamar','raz','ron','yoni'];
 const COLORS = ['#FF6B6B','#4ECDC4','#FFE66D','#A8E6CF','#FF8B94'];
-const MAX_LIVES        = 3;
-const BASE_SPAWN_MS    = 1500;
-const MIN_SPAWN_MS     = 380;
-const BASE_SPEED       = 1.3;
-const MAX_PARTICLES    = 400;
-const LEVEL_INTERVAL   = 20000;  // ms between level-ups
-const WAVE_INTERVAL    = 28000;  // ms between balloon waves
+const MAX_LIVES     = 3;
+const MAX_PARTICLES = 400;
+const LEVEL_INTERVAL = 18000; // ms between level-ups
+
+// Per-level config: 10 levels, last entry repeats for L11+
+const LEVEL_CFG = [
+  // L1 – sunny day, gentle
+  { skyTop:'#5CB8E8', skyBot:'#A0E89A', spawnMs:1500, speed:1.3, specialChance:0.08, minR:34, maxR:58, waveCnt:4, waveMs:30000, armor:false, zigzag:false, scoreMulti:1 },
+  // L2
+  { skyTop:'#4EAEE0', skyBot:'#98E492', spawnMs:1300, speed:1.55, specialChance:0.10, minR:32, maxR:56, waveCnt:5, waveMs:27000, armor:false, zigzag:false, scoreMulti:1 },
+  // L3 – afternoon
+  { skyTop:'#3A9ED0', skyBot:'#8CD880', spawnMs:1120, speed:1.8, specialChance:0.12, minR:30, maxR:54, waveCnt:5, waveMs:25000, armor:false, zigzag:false, scoreMulti:1 },
+  // L4 – zigzag begins
+  { skyTop:'#E89060', skyBot:'#82D478', spawnMs:960,  speed:2.05, specialChance:0.13, minR:28, maxR:52, waveCnt:6, waveMs:23000, armor:false, zigzag:true,  scoreMulti:2 },
+  // L5 – sunset
+  { skyTop:'#D06858', skyBot:'#78C870', spawnMs:830,  speed:2.3,  specialChance:0.14, minR:26, maxR:50, waveCnt:6, waveMs:21000, armor:false, zigzag:true,  scoreMulti:2 },
+  // L6 – dusk, armored balloons appear
+  { skyTop:'#5A3A8E', skyBot:'#4A805C', spawnMs:720,  speed:2.6,  specialChance:0.15, minR:26, maxR:48, waveCnt:7, waveMs:19000, armor:true,  zigzag:true,  scoreMulti:3 },
+  // L7 – night
+  { skyTop:'#1E2A60', skyBot:'#3A6850', spawnMs:620,  speed:2.9,  specialChance:0.17, minR:24, maxR:46, waveCnt:8, waveMs:17000, armor:true,  zigzag:true,  scoreMulti:3 },
+  // L8 – deep night
+  { skyTop:'#121840', skyBot:'#2A5040', spawnMs:530,  speed:3.2,  specialChance:0.19, minR:22, maxR:44, waveCnt:9, waveMs:15000, armor:true,  zigzag:true,  scoreMulti:4 },
+  // L9 – storm
+  { skyTop:'#0A1230', skyBot:'#1E3830', spawnMs:460,  speed:3.6,  specialChance:0.21, minR:20, maxR:42, waveCnt:10,waveMs:13000, armor:true,  zigzag:true,  scoreMulti:4 },
+  // L10 – CHAOS
+  { skyTop:'#06091A', skyBot:'#142820', spawnMs:390,  speed:4.1,  specialChance:0.25, minR:18, maxR:40, waveCnt:12,waveMs:11000, armor:true,  zigzag:true,  scoreMulti:5 },
+];
+function cfg() { return LEVEL_CFG[Math.min(level-1, LEVEL_CFG.length-1)]; }
 
 // ── STATE ────────────────────────────────────────────────────────────────────
 let canvas, ctx, W, H;
@@ -121,6 +142,8 @@ let charImages = {};
 let pendingImages = CHARS.length;
 let cloudOffsets = [0.06, 0.30, 0.58, 0.82];
 const cloudYs    = [0.10, 0.06, 0.14, 0.08];
+// level-up banner
+let levelBanner = { active: false, t: 0, text: '' };
 
 // ── IMAGE LOADING ─────────────────────────────────────────────────────────────
 function loadImages(cb) {
@@ -226,23 +249,35 @@ function drawAvatar(name, cx, cy, r, c) {
 
 // ── BALLOON FACTORY ───────────────────────────────────────────────────────────
 function makeBalloon(forceX) {
-  const special = Math.random() < 0.11;
-  const r       = special ? (42 + Math.random()*14) : (32 + Math.random()*26);
+  const c       = cfg();
+  const special = Math.random() < c.specialChance;
+  const rMin    = special ? Math.max(c.minR, 38) : c.minR;
+  const rMax    = special ? Math.min(c.maxR, 56) : c.maxR;
+  const r       = rMin + Math.random()*(rMax - rMin);
   const charIdx = Math.floor(Math.random() * CHARS.length);
-  const spd     = BASE_SPEED + (level-1)*0.28 + Math.random()*1.4;
+  const spd     = c.speed + Math.random()*1.2;
+  // armored: L6+ has 20% chance of 2-hit balloon
+  const armored = c.armor && !special && Math.random() < 0.20;
   return {
     x:  forceX !== undefined ? forceX : r + Math.random()*(W - 2*r),
     y:  H + r + 5,
     r,
     charIdx,
-    vy:      -(spd * (special ? 1.25 : 1)),
+    vy:      -(spd * (special ? 1.3 : 1)),
     drift:   (Math.random()-0.5)*0.55,
     phase:   Math.random()*Math.PI*2,
+    // zigzag: horizontal sine oscillation
+    zigzag:  c.zigzag && !special,
+    zigFreq: 0.025 + Math.random()*0.02,
+    zigAmp:  30 + Math.random()*40,
+    zigT:    Math.random()*Math.PI*2,
     special,
+    armored,
+    cracked: false, // armored hit once
     alive:   true,
     popping: false,
     popT:    0,
-    points:  special ? 50 : Math.max(10, Math.round(r * 0.58)),
+    points:  special ? 50 + level*5 : Math.max(10, Math.round(r * 0.58)) * c.scoreMulti,
     wobbleT: Math.random()*Math.PI*2,
     wobbleA: 0,
   };
@@ -253,22 +288,29 @@ function spawnOne(forceX) { if (gameActive) balloons.push(makeBalloon(forceX)); 
 
 function scheduleSpawning() {
   clearInterval(spawnTimerId);
-  const ms = Math.max(MIN_SPAWN_MS, BASE_SPAWN_MS - (level-1)*165);
-  spawnTimerId = setInterval(spawnOne, ms);
+  spawnTimerId = setInterval(spawnOne, cfg().spawnMs);
 }
 
 function triggerWave() {
   if (!gameActive) return;
-  const count   = 4 + level;
+  const count   = cfg().waveCnt;
   const spacing = W / (count+1);
   for (let i = 0; i < count; i++) {
-    setTimeout(() => { if (gameActive) spawnOne(spacing*(i+1)); }, i*230);
+    setTimeout(() => { if (gameActive) spawnOne(spacing*(i+1)); }, i*210);
   }
 }
 
 // ── POP ───────────────────────────────────────────────────────────────────────
 function popBalloon(b) {
   if (!b.alive) return;
+  // armored: first hit cracks it, second hit pops it
+  if (b.armored && !b.cracked) {
+    b.cracked  = true;
+    b.wobbleA  = 8; // shake
+    playPop(0.5);
+    floatTexts.push({ x:b.x, y:b.y-b.r, text:'CRACKED!', life:1, vy:-1.8, col:'#FF8B94' });
+    return;
+  }
   b.alive   = false;
   b.popping = true;
   b.popT    = 0;
@@ -352,14 +394,20 @@ function update(dt) {
     if (!b.alive) { balloons.splice(i,1); continue; }
 
     b.y      += b.vy    * dt;
-    b.x      += b.drift * dt + Math.sin(b.phase) * 0.38 * dt;
-    b.phase  += 0.019 * dt;
     b.wobbleT+= 0.03  * dt;
     b.wobbleA = Math.max(0, b.wobbleA - 0.07*dt);
 
-    // wall bounce
-    if (b.x - b.r < 0)  { b.x = b.r;     b.drift =  Math.abs(b.drift); }
-    if (b.x + b.r > W)  { b.x = W - b.r; b.drift = -Math.abs(b.drift); }
+    if (b.zigzag) {
+      // sinusoidal horizontal sweep
+      b.zigT += b.zigFreq * dt;
+      b.x = Math.max(b.r, Math.min(W-b.r, b.x + Math.cos(b.zigT) * b.zigAmp * b.zigFreq * dt * 2));
+    } else {
+      b.x    += b.drift * dt + Math.sin(b.phase) * 0.38 * dt;
+      b.phase+= 0.019 * dt;
+      // wall bounce
+      if (b.x - b.r < 0)  { b.x = b.r;     b.drift =  Math.abs(b.drift); }
+      if (b.x + b.r > W)  { b.x = W - b.r; b.drift = -Math.abs(b.drift); }
+    }
 
     // escaped top → lose life
     if (b.y + b.r < 0) {
@@ -396,12 +444,27 @@ function update(dt) {
 function draw() {
   ctx.clearRect(0, 0, W, H);
 
-  // sky gradient
+  // sky gradient (changes with level)
+  const c = cfg();
   const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, '#5CB8E8');
-  sky.addColorStop(0.6, '#B4DEFF');
-  sky.addColorStop(1, '#A0E89A');
+  sky.addColorStop(0,   c.skyTop);
+  sky.addColorStop(0.7, c.skyBot);
   ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+
+  // stars on night levels (L6+)
+  if (level >= 6) {
+    ctx.fillStyle = `rgba(255,255,255,${Math.min(0.9, (level-5)*0.18)})`;
+    // deterministic star positions using simple hash
+    for (let i = 0; i < 60; i++) {
+      const sx = ((i*137.508 + 23) % W);
+      const sy = ((i*97.31  + 11) % (H*0.55));
+      const sr = 0.8 + (i%3)*0.6;
+      const pulse = 0.5 + 0.5*Math.sin(Date.now()*0.001 + i);
+      ctx.globalAlpha = pulse * Math.min(0.9, (level-5)*0.2);
+      ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
 
   // clouds (drift right)
   cloudOffsets = cloudOffsets.map(x => (x + 0.000065) % 1.15);
@@ -423,6 +486,25 @@ function draw() {
       drawBalloon(b);
     }
   });
+
+  // level-up banner
+  if (levelBanner.active) {
+    levelBanner.t += 0.03;
+    if (levelBanner.t > 1) { levelBanner.active = false; }
+    else {
+      const fade  = levelBanner.t < 0.3 ? levelBanner.t/0.3 : 1 - (levelBanner.t-0.3)/0.7;
+      const scale = 0.6 + levelBanner.t * 0.8;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, fade);
+      ctx.font = `bold ${Math.floor(H * 0.09 * scale)}px Arial`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 8;
+      ctx.strokeText(levelBanner.text, W/2, H/2);
+      ctx.fillStyle = '#FFE66D';
+      ctx.fillText(levelBanner.text, W/2, H/2);
+      ctx.restore();
+    }
+  }
 
   // floating score texts
   floatTexts.forEach(t => {
@@ -486,6 +568,26 @@ function drawBalloon(b) {
   ctx.strokeStyle = 'rgba(0,0,0,0.32)'; ctx.lineWidth = 1.5; ctx.stroke();
 
   drawBalloonBody(ctx, b, 0, 0);
+
+  // crack overlay for armored balloons
+  if (b.armored && b.cracked) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    // lightning-bolt crack pattern
+    ctx.moveTo(-b.r*0.1, -b.r*0.5);
+    ctx.lineTo( b.r*0.2, -b.r*0.1);
+    ctx.lineTo(-b.r*0.1,  b.r*0.1);
+    ctx.lineTo( b.r*0.3,  b.r*0.5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-b.r*0.3, -b.r*0.3);
+    ctx.lineTo(-b.r*0.05, 0);
+    ctx.lineTo(-b.r*0.35, b.r*0.3);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   // golden glow for special
   if (b.special) {
@@ -564,12 +666,16 @@ function doLevelUp() {
   if (!gameActive) return;
   level++;
   const el = document.getElementById('level-display');
-  el.textContent = 'Level ' + level;
-  el.style.fontSize = '26px';
+  const isMax = level >= LEVEL_CFG.length;
+  el.textContent = isMax ? `⚡ MAX LEVEL ${level}` : 'Level ' + level;
+  el.style.fontSize = '24px';
   el.style.color = '#FF6B6B';
-  setTimeout(() => { el.style.fontSize = '17px'; el.style.color = '#FFE66D'; }, 900);
+  setTimeout(() => { el.style.fontSize = '17px'; el.style.color = '#FFE66D'; }, 1000);
   scheduleSpawning();
   playLevelUp();
+  levelBanner.active = true;
+  levelBanner.t      = 0;
+  levelBanner.text   = level >= LEVEL_CFG.length ? `⚡ CHAOS! ⚡` : `🎈 Level ${level}!`;
 }
 
 // ── GAME OVER ─────────────────────────────────────────────────────────────────
@@ -612,7 +718,7 @@ function startGame() {
   function scheduleNextWave() {
     waveTimerId = setTimeout(() => {
       if (gameActive) { triggerWave(); scheduleNextWave(); }
-    }, WAVE_INTERVAL);
+    }, cfg().waveMs);
   }
   scheduleNextWave();
 
