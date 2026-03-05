@@ -765,6 +765,11 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('keyup', e => { keys[e.key] = false; });
 
+// ─── INIT (must run before event listeners that reference canvas) ─────────────
+canvas = document.getElementById('gameCanvas');
+ctx = canvas.getContext('2d');
+resize();
+
 // Touch controls
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
@@ -826,10 +831,6 @@ document.getElementById('startBtn').onclick = () => {
 
 window.addEventListener('resize', resize);
 
-// ─── INIT ─────────────────────────────────────────────────────────────────────
-canvas = document.getElementById('gameCanvas');
-ctx = canvas.getContext('2d');
-resize();
 loadImages(() => {
   loop();
 });
