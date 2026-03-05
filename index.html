@@ -571,11 +571,12 @@ function checkCollisions() {
     }
     ball.charIdx = aliveCharIdxs[Math.floor(Math.random() * aliveCharIdxs.length)];
   } else {
-    // wrong face - bounce back
+    // wrong face - bounce and keep flying
     ball.vy = -Math.abs(ball.vy) * 0.6;
     ball.vx *= -0.5;
+    return; // don't deactivate — ball continues in the air
   }
-  // return ball after collision
+  // correct match: deactivate ball, return to player
   ball.active = false;
   setTimeout(() => {
     ballHeld = true;
