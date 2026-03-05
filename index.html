@@ -116,8 +116,8 @@ const BALLOONS_PER_ROW = 5;
 const GRAVITY = 0.18;
 const THROW_POWER = 14;
 const PLAYER_SPEED = 5;
-const BALLOON_RADIUS = 36;
-const BALL_RADIUS = 30;
+const BALLOON_RADIUS = 52;
+const BALL_RADIUS = 42;
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let W, H, canvas, ctx;
@@ -267,7 +267,7 @@ function drawBalloon(b) {
   ctx.fill();
 
   // face
-  drawAvatar(CHARS[charIdx], 0, -r * 0.05, r * 0.58, ctx);
+  drawAvatar(CHARS[charIdx], 0, -r * 0.05, r * 0.68, ctx);
 
   // knot
   ctx.beginPath();
@@ -312,7 +312,7 @@ function drawPlayer() {
   (function(x,y,w,h,r){ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);ctx.lineTo(x+r,y+h);ctx.arcTo(x,y+h,x,y+h-r,r);ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);}(-22,10,44,42,8));
   ctx.fill();
   // head
-  drawAvatar(CHARS[charIdx], 0, -16, 28, ctx);
+  drawAvatar(CHARS[charIdx], 0, -16, 38, ctx);
   // arm holding ball
   if (ballHeld) {
     const armAngle = aimAngle + Math.PI / 2; // rotate by 90 to get arm direction
@@ -363,7 +363,7 @@ function drawBall() {
   ctx.lineWidth = 2;
   ctx.stroke();
   // face
-  drawAvatar(CHARS[ball.charIdx], 0, 0, r * 0.8, ctx);
+  drawAvatar(CHARS[ball.charIdx], 0, 0, r * 0.86, ctx);
   ctx.restore();
 }
 
@@ -391,30 +391,32 @@ function drawAimLine() {
 
 // ─── PARTICLES ────────────────────────────────────────────────────────────────
 function spawnParticles(x, y, col) {
-  for (let i = 0; i < 18; i++) {
-    const angle = (i / 18) * Math.PI * 2 + Math.random() * 0.3;
-    const speed = 3 + Math.random() * 6;
+  // main burst — large, fast shards
+  for (let i = 0; i < 24; i++) {
+    const angle = (i / 24) * Math.PI * 2 + Math.random() * 0.4;
+    const speed = 8 + Math.random() * 14;
     particles.push({
       x, y,
       vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed - 2,
-      r: 6 + Math.random() * 8,
+      vy: Math.sin(angle) * speed - 3,
+      r: 10 + Math.random() * 12,
       col,
       life: 1,
-      decay: 0.025 + Math.random() * 0.03,
+      decay: 0.055 + Math.random() * 0.045,
     });
   }
-  // rubber bits
-  for (let i = 0; i < 8; i++) {
+  // secondary rubber shreds — white/dark, fast
+  for (let i = 0; i < 14; i++) {
     const angle = Math.random() * Math.PI * 2;
+    const speed = 5 + Math.random() * 10;
     particles.push({
       x, y,
-      vx: Math.cos(angle) * (2 + Math.random() * 4),
-      vy: Math.sin(angle) * (2 + Math.random() * 4) - 3,
-      r: 3 + Math.random() * 4,
-      col: darken(col, 30),
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 4,
+      r: 5 + Math.random() * 7,
+      col: i % 2 === 0 ? '#fff' : darken(col, 40),
       life: 1,
-      decay: 0.04 + Math.random() * 0.04,
+      decay: 0.07 + Math.random() * 0.06,
     });
   }
 }
@@ -581,7 +583,7 @@ function checkCollisions() {
   setTimeout(() => {
     ballHeld = true;
     aimAngle = -Math.PI / 2;
-  }, 600);
+  }, 250);
 }
 
 // ─── WIN ──────────────────────────────────────────────────────────────────────
@@ -645,7 +647,7 @@ function update() {
     // fell below screen
     if (ball.y > H + 50) {
       ball.active = false;
-      setTimeout(() => { ballHeld = true; aimAngle = -Math.PI / 2; }, 400);
+      setTimeout(() => { ballHeld = true; aimAngle = -Math.PI / 2; }, 180);
     }
 
     checkCollisions();
@@ -658,7 +660,7 @@ function update() {
       b.wobble = Math.max(0, b.wobble - 0.05);
     }
     if (b.popping) {
-      b.popT += 0.08;
+      b.popT += 0.20;
       if (b.popT > 1) b.popping = false;
     }
   });
@@ -692,13 +694,23 @@ function draw() {
     if (b.alive) {
       drawBalloon(b);
     } else if (b.popping) {
-      // scale-up pop
+      // explosive burst — bright ring flash + rapid scale-out
       ctx.save();
       ctx.translate(b.x, b.y);
-      const s = 1 + b.popT * 0.8;
+      const s = 1 + b.popT * 2.5;
+      const alpha = Math.max(0, 1 - b.popT * 1.6);
+      ctx.globalAlpha = alpha;
       ctx.scale(s, s);
-      ctx.globalAlpha = 1 - b.popT;
       drawBalloonShape(b);
+      ctx.restore();
+      // shockwave ring
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 0.7 - b.popT * 1.4);
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, BALLOON_RADIUS * s * 0.9, 0, Math.PI * 2);
+      ctx.strokeStyle = COLORS[b.charIdx % COLORS.length];
+      ctx.lineWidth = 6 * (1 - b.popT);
+      ctx.stroke();
       ctx.restore();
     }
   });
