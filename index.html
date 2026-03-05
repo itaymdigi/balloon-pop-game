@@ -228,27 +228,23 @@ function attachAt(r,c,ci){
     if(fl.length){ score+=fl.length*20*level; document.getElementById('score-el').textContent='⭐ '+score; }
   }
 
-  // win check
-  if(!grid.some(row=>row.some(v=>v!==-1))) setTimeout(levelWin,700);
+  // win check: only count the originally-filled rows (not the empty buffer rows)
+  const filledRows=5+Math.min(level-1,5);
+  if(!grid.slice(0,filledRows).some(row=>row.some(v=>v!==-1))) setTimeout(levelWin,700);
 }
 
-// ── ATTACH BEST SLOT ─────────────────────────────────────────────────────────
-// Finds the closest valid empty cell to the flying bubble and attaches there.
-function attachBestSlot(){
-  ensureRow(grid.length+1); // ensure empty rows exist at bottom
-  let best=null,bestD=Infinity;
-  grid.forEach((row,r)=>row.forEach((v,c)=>{
-    if(v!==-1)return; // must be empty
-    // must touch an occupied cell or be in row 0
-    const hasN=r===0||neighbors(r,c).some(([nr,nc])=>{
-      const val=grid[nr]?.[nc];
-      return val!==undefined&&val!==-1;
-    });
-    if(!hasN)return;
-    const{x,y}=cellXY(r,c);
-    const d=(fly.x-x)**2+(fly.y-y)**2;
-    if(d<bestD){bestD=d;best=[r,c];}
-  }));
+// ── SNAP TO NEAREST EMPTY SLOT ───────────────────────────────────────────────
+function snapToGrid(){
+  ensureRow(grid.length); // guarantee at least one empty row at bottom
+  let best=null, bestD=Infinity;
+  for(let r=0;r<grid.length;r++){
+    for(let c=0;c<cols(r);c++){
+      if(grid[r][c]!==-1)continue; // skip occupied
+      const{x,y}=cellXY(r,c);
+      const d=(fly.x-x)**2+(fly.y-y)**2;
+      if(d<bestD){bestD=d;best=[r,c];}
+    }
+  }
   if(best)attachAt(best[0],best[1],fly.charIdx);
 }
 
@@ -258,19 +254,19 @@ let SHOOT_ZONE = 130; // pixels from bottom for shooter area
 function tryAttach(){
   if(!fly)return false;
   // hit top wall
-  if(fly.y-BR<=GT+RH){attachBestSlot();return true;}
-  // find NEAREST occupied bubble within touching distance (not first found)
-  let hitD=Infinity;
+  if(fly.y-BR<=GT){snapToGrid();return true;}
+  // hit any occupied bubble (find nearest, not first)
+  let nearD=Infinity;
   for(let r=0;r<grid.length;r++){
     for(let c=0;c<cols(r);c++){
       if(grid[r][c]===-1)continue;
       const{x,y}=cellXY(r,c);
       const dx=fly.x-x,dy=fly.y-y;
       const d=dx*dx+dy*dy;
-      if(d<(BR*2.0)**2&&d<hitD)hitD=d;
+      if(d<nearD)nearD=d;
     }
   }
-  if(hitD<Infinity){attachBestSlot();return true;}
+  if(nearD<(BR*2.0)**2){snapToGrid();return true;}
   return false;
 }
 
