@@ -3,774 +3,645 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Balloon Pop!</title>
+<title>Bubble Shooter!</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    overflow: hidden;
-    font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
-    user-select: none;
-    touch-action: none;
-    background: #87CEEB;
-  }
-  canvas { display: block; cursor: crosshair; }
+  * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+  body { background: #12122a; overflow: hidden; font-family: Arial, sans-serif; }
+  canvas { display: block; }
   #ui {
-    position: fixed; top: 0; left: 0; right: 0;
+    position: fixed; top: 0; left: 0; right: 0; height: 52px;
     display: flex; justify-content: space-between; align-items: center;
-    padding: 10px 18px;
-    background: rgba(0,0,0,0.28);
-    backdrop-filter: blur(6px);
-    z-index: 10; pointer-events: none;
+    padding: 0 16px; z-index: 10; pointer-events: none;
+    background: linear-gradient(180deg,rgba(0,0,0,0.5),rgba(0,0,0,0));
   }
-  .ui-pill {
-    background: rgba(255,255,255,0.15);
-    border-radius: 20px;
-    padding: 5px 14px;
-    font-weight: bold;
-    color: #fff;
-    text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  .pill {
+    color: #fff; font-weight: bold; font-size: 19px;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+    background: rgba(255,255,255,0.12); border-radius: 16px; padding: 3px 13px;
   }
-  #score-display { font-size: 24px; }
-  #level-display { font-size: 17px; color: #FFE66D; transition: font-size 0.3s, color 0.3s; }
-  #lives-display { font-size: 24px; letter-spacing: 2px; }
-  #mute-btn {
-    position: fixed; bottom: 14px; right: 14px;
-    background: rgba(255,255,255,0.88); border: none; border-radius: 50%;
-    width: 46px; height: 46px; font-size: 22px; cursor: pointer;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.25); z-index: 10;
-    display: flex; align-items: center; justify-content: center;
-    transition: transform 0.1s;
-  }
-  #mute-btn:active { transform: scale(0.9); }
   #overlay {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.62);
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
+    position: fixed; inset: 0; background: rgba(10,10,30,0.82);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
     z-index: 20; color: #fff; text-align: center; padding: 24px;
   }
-  #overlay h1 {
-    font-size: clamp(38px, 9vw, 68px);
-    text-shadow: 0 3px 14px rgba(0,0,0,0.55);
-    margin-bottom: 10px;
-  }
-  #overlay .subtitle { font-size: clamp(15px, 3vw, 22px); opacity: 0.88; margin-bottom: 6px; }
-  #overlay .hint { font-size: clamp(12px, 2vw, 16px); opacity: 0.6; margin-bottom: 26px; }
-  #overlay .final-score {
-    font-size: clamp(32px, 6vw, 52px);
-    color: #FFE66D; margin: 14px 0 26px;
-    text-shadow: 0 0 20px rgba(255,210,0,0.6);
-  }
+  #overlay h1   { font-size: clamp(34px,8vw,60px); margin-bottom: 10px; }
+  #overlay .sub { font-size: clamp(13px,2.8vw,20px); opacity: 0.8; margin-bottom: 6px; }
+  #overlay .hint{ font-size: clamp(11px,2vw,16px); opacity: 0.55; margin-bottom: 24px; }
+  #overlay .fscore { font-size: clamp(28px,5vw,46px); color: #FFE66D; margin-bottom: 22px; font-weight: bold; }
   #overlay button {
-    background: linear-gradient(135deg, #FF6B6B, #FF8E53);
-    color: #fff; border: none; border-radius: 34px;
-    padding: 16px 54px; font-size: clamp(20px, 4vw, 28px); font-weight: bold;
-    cursor: pointer; box-shadow: 0 6px 22px rgba(255,100,100,0.5);
-    transition: transform 0.1s; pointer-events: all;
+    background: linear-gradient(135deg,#FF6B6B,#FF8E53);
+    color: #fff; border: none; border-radius: 32px;
+    padding: 14px 52px; font-size: clamp(18px,3.5vw,26px); font-weight: bold;
+    cursor: pointer; pointer-events: all; box-shadow: 0 6px 20px rgba(255,100,100,0.45);
+    transition: transform .1s;
   }
   #overlay button:active { transform: scale(0.94); }
-  #combo-pop {
-    position: fixed; top: 72px; left: 50%; transform: translateX(-50%);
-    font-size: 30px; font-weight: bold; color: #FFE66D;
-    text-shadow: 0 0 20px rgba(255,200,0,0.9), 0 2px 6px rgba(0,0,0,0.5);
-    opacity: 0; pointer-events: none; z-index: 15;
-    transition: opacity 0.25s;
-    white-space: nowrap;
+  #mute {
+    position: fixed; bottom: 12px; right: 12px; z-index: 10;
+    background: rgba(255,255,255,0.88); border: none; border-radius: 50%;
+    width: 42px; height: 42px; font-size: 20px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
   }
 </style>
 </head>
 <body>
-
 <div id="ui">
-  <div class="ui-pill" id="score-display">⭐ 0</div>
-  <div class="ui-pill" id="level-display">Level 1</div>
-  <div class="ui-pill" id="lives-display">❤️❤️❤️</div>
+  <div class="pill" id="score-el">⭐ 0</div>
+  <div class="pill" id="level-el">Level 1</div>
+  <div class="pill" id="lives-el">❤️❤️❤️</div>
 </div>
-<canvas id="gameCanvas"></canvas>
-<button id="mute-btn">🔊</button>
-<div id="combo-pop"></div>
-
+<canvas id="c"></canvas>
+<button id="mute">🔊</button>
 <div id="overlay">
-  <h1>🎈 Balloon Pop!</h1>
-  <p class="subtitle">Tap balloons before they escape!</p>
-  <p class="hint">⭐ Bigger = more points &nbsp;|&nbsp; ✨ Gold = bonus!</p>
+  <h1>🎈 Bubble Shooter!</h1>
+  <div class="sub">Shoot to match 3+ same faces!</div>
+  <div class="hint">Click / tap to aim and fire</div>
   <button id="start-btn">▶ Play</button>
 </div>
 
 <script>
-// ── CONSTANTS ────────────────────────────────────────────────────────────────
+// ── CONFIG ────────────────────────────────────────────────────────────────────
 const CHARS  = ['adiel','itamar','raz','ron','yoni'];
-const COLORS = ['#FF6B6B','#4ECDC4','#FFE66D','#A8E6CF','#FF8B94'];
-const MAX_LIVES     = 3;
-const MAX_PARTICLES = 400;
-const LEVEL_INTERVAL = 18000; // ms between level-ups
+const COLORS = ['#FF3232','#32C8FF','#FFD700','#32FF88','#FF50C8'];
+const NUM_COLS  = 8;
+const MIN_MATCH = 3;
+const MAX_LIVES = 3;
+const SHOOT_SPD = 16;
+const UI_H      = 52;
 
-// Per-level config: 10 levels, last entry repeats for L11+
-const LEVEL_CFG = [
-  // L1 – sunny day, gentle
-  { skyTop:'#5CB8E8', skyBot:'#A0E89A', spawnMs:1500, speed:1.3, specialChance:0.08, minR:34, maxR:58, waveCnt:4, waveMs:30000, armor:false, zigzag:false, scoreMulti:1 },
-  // L2
-  { skyTop:'#4EAEE0', skyBot:'#98E492', spawnMs:1300, speed:1.55, specialChance:0.10, minR:32, maxR:56, waveCnt:5, waveMs:27000, armor:false, zigzag:false, scoreMulti:1 },
-  // L3 – afternoon
-  { skyTop:'#3A9ED0', skyBot:'#8CD880', spawnMs:1120, speed:1.8, specialChance:0.12, minR:30, maxR:54, waveCnt:5, waveMs:25000, armor:false, zigzag:false, scoreMulti:1 },
-  // L4 – zigzag begins
-  { skyTop:'#E89060', skyBot:'#82D478', spawnMs:960,  speed:2.05, specialChance:0.13, minR:28, maxR:52, waveCnt:6, waveMs:23000, armor:false, zigzag:true,  scoreMulti:2 },
-  // L5 – sunset
-  { skyTop:'#D06858', skyBot:'#78C870', spawnMs:830,  speed:2.3,  specialChance:0.14, minR:26, maxR:50, waveCnt:6, waveMs:21000, armor:false, zigzag:true,  scoreMulti:2 },
-  // L6 – dusk, armored balloons appear
-  { skyTop:'#5A3A8E', skyBot:'#4A805C', spawnMs:720,  speed:2.6,  specialChance:0.15, minR:26, maxR:48, waveCnt:7, waveMs:19000, armor:true,  zigzag:true,  scoreMulti:3 },
-  // L7 – night
-  { skyTop:'#1E2A60', skyBot:'#3A6850', spawnMs:620,  speed:2.9,  specialChance:0.17, minR:24, maxR:46, waveCnt:8, waveMs:17000, armor:true,  zigzag:true,  scoreMulti:3 },
-  // L8 – deep night
-  { skyTop:'#121840', skyBot:'#2A5040', spawnMs:530,  speed:3.2,  specialChance:0.19, minR:22, maxR:44, waveCnt:9, waveMs:15000, armor:true,  zigzag:true,  scoreMulti:4 },
-  // L9 – storm
-  { skyTop:'#0A1230', skyBot:'#1E3830', spawnMs:460,  speed:3.6,  specialChance:0.21, minR:20, maxR:42, waveCnt:10,waveMs:13000, armor:true,  zigzag:true,  scoreMulti:4 },
-  // L10 – CHAOS
-  { skyTop:'#06091A', skyBot:'#142820', spawnMs:390,  speed:4.1,  specialChance:0.25, minR:18, maxR:40, waveCnt:12,waveMs:11000, armor:true,  zigzag:true,  scoreMulti:5 },
-];
-function cfg() { return LEVEL_CFG[Math.min(level-1, LEVEL_CFG.length-1)]; }
-
-// ── STATE ────────────────────────────────────────────────────────────────────
+// ── STATE ─────────────────────────────────────────────────────────────────────
 let canvas, ctx, W, H;
-let balloons = [], particles = [], floatTexts = [];
-let score = 0, lives = MAX_LIVES, level = 1, combo = 0;
-let gameActive = false, muted = false;
-let audioCtx = null;
-let spawnTimerId = null, levelTimerId = null, waveTimerId = null, comboTimerId = null;
-let lastTs = 0;
-let charImages = {};
-let pendingImages = CHARS.length;
-let cloudOffsets = [0.06, 0.30, 0.58, 0.82];
-const cloudYs    = [0.10, 0.06, 0.14, 0.08];
-// level-up banner
-let levelBanner = { active: false, t: 0, text: '' };
+let BR = 26;       // bubble radius
+let GL = 0;        // grid left X
+let GT = UI_H;     // grid top Y
+let RH = 0;        // row height
 
-// ── IMAGE LOADING ─────────────────────────────────────────────────────────────
+let grid = [];     // grid[row][col] = charIdx  (-1 = empty)
+let pops = [];     // {x,y,charIdx,t}
+let drops = [];    // {x,y,vy,acc,charIdx}
+let parts = [];    // particles
+let ftexts = [];   // floating score texts
+let bannerT = -1;  // level-up banner animation t (0-1, -1=off)
+let bannerTxt = '';
+
+let fly = null;    // flying bubble {x,y,vx,vy,charIdx}
+let currChar = 0, nextChar = 1;
+let aimPt = null;  // {x,y} pointer for aim line
+let canShoot = true;
+
+let score=0, lives=MAX_LIVES, level=1;
+let gameActive=false, muted=false;
+let audioCtx=null;
+let charImages={}, pendingImg=CHARS.length;
+let lastTs=0;
+
+// ── IMAGES ───────────────────────────────────────────────────────────────────
 function loadImages(cb) {
-  CHARS.forEach(name => {
-    const img = new Image();
-    img.onload  = () => { charImages[name] = img;   if (--pendingImages === 0) cb(); };
-    img.onerror = () => { charImages[name] = null;  if (--pendingImages === 0) cb(); };
-    img.src = name + '.png';
+  CHARS.forEach(name=>{
+    const img=new Image();
+    img.onload =()=>{ charImages[name]=img;   if(!--pendingImg)cb(); };
+    img.onerror=()=>{ charImages[name]=null;  if(!--pendingImg)cb(); };
+    img.src=name+'.png';
   });
 }
 
-// ── AUDIO ─────────────────────────────────────────────────────────────────────
-function getAC() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  return audioCtx;
-}
-function playPop(pitch = 1) {
-  if (muted) return;
-  try {
-    const ac = getAC();
-    const sampleLen = Math.floor(ac.sampleRate * 0.11);
-    const buf  = ac.createBuffer(1, sampleLen, ac.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < sampleLen; i++) data[i] = (Math.random()*2-1) * (1 - i/sampleLen);
-    const src  = ac.createBufferSource();
-    const gain = ac.createGain();
-    const filt = ac.createBiquadFilter();
-    filt.type = 'bandpass'; filt.frequency.value = 650 * pitch;
-    src.buffer = buf;
-    src.connect(filt); filt.connect(gain); gain.connect(ac.destination);
-    gain.gain.setValueAtTime(0.75, ac.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.11);
-    src.start();
-  } catch(e) {}
-}
-function playMiss() {
-  if (muted) return;
-  try {
-    const ac  = getAC();
-    const osc = ac.createOscillator();
-    const g   = ac.createGain();
-    osc.connect(g); g.connect(ac.destination);
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(220, ac.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(80, ac.currentTime + 0.3);
-    g.gain.setValueAtTime(0.28, ac.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.3);
-    osc.start(); osc.stop(ac.currentTime + 0.3);
-  } catch(e) {}
-}
-function playLevelUp() {
-  [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => {
-    if (muted) return;
-    try {
-      const ac = getAC(), osc = ac.createOscillator(), g = ac.createGain();
-      osc.connect(g); g.connect(ac.destination);
-      osc.type = 'triangle'; osc.frequency.value = f;
-      g.gain.setValueAtTime(0.18, ac.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.28);
-      osc.start(); osc.stop(ac.currentTime + 0.28);
-    } catch(e) {}
-  }, i * 95));
-}
-function playComboSound(n) {
-  if (muted) return;
-  try {
-    const ac = getAC(), osc = ac.createOscillator(), g = ac.createGain();
-    osc.connect(g); g.connect(ac.destination);
-    osc.type = 'sine'; osc.frequency.value = Math.min(1200, 600 + n * 80);
-    g.gain.setValueAtTime(0.14, ac.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.18);
-    osc.start(); osc.stop(ac.currentTime + 0.18);
-  } catch(e) {}
-}
+// ── AUDIO ────────────────────────────────────────────────────────────────────
+function getAC(){ if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)(); return audioCtx; }
+function snd(fn){ if(muted)return; try{fn(getAC());}catch(e){} }
+function playShoot(){ snd(ac=>{ const o=ac.createOscillator(),g=ac.createGain(); o.connect(g);g.connect(ac.destination); o.type='sine';o.frequency.setValueAtTime(500,ac.currentTime);o.frequency.exponentialRampToValueAtTime(250,ac.currentTime+0.1); g.gain.setValueAtTime(0.12,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.1); o.start();o.stop(ac.currentTime+0.1); }); }
+function playPop(){ snd(ac=>{ const n=Math.floor(ac.sampleRate*0.09),buf=ac.createBuffer(1,n,ac.sampleRate),d=buf.getChannelData(0); for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n); const src=ac.createBufferSource(),g=ac.createGain(),f=ac.createBiquadFilter(); f.type='bandpass';f.frequency.value=900; src.buffer=buf;src.connect(f);f.connect(g);g.connect(ac.destination); g.gain.setValueAtTime(0.6,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.09); src.start(); }); }
+function playWin(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>snd(ac=>{ const o=ac.createOscillator(),g=ac.createGain(); o.connect(g);g.connect(ac.destination); o.type='triangle';o.frequency.value=f; g.gain.setValueAtTime(0.18,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.3); o.start();o.stop(ac.currentTime+0.3); }),i*100)); }
 
-// ── COLOR UTILS ───────────────────────────────────────────────────────────────
-function adjCol(hex, amt) {
-  if (!hex.startsWith('#')) return hex;
-  const r = Math.max(0, Math.min(255, parseInt(hex.slice(1,3),16)+amt));
-  const g = Math.max(0, Math.min(255, parseInt(hex.slice(3,5),16)+amt));
-  const b = Math.max(0, Math.min(255, parseInt(hex.slice(5,7),16)+amt));
-  return `rgb(${r},${g},${b})`;
-}
+// ── GRID HELPERS ─────────────────────────────────────────────────────────────
+const cols = r => r%2===0 ? NUM_COLS : NUM_COLS-1;
 
-// ── DRAW AVATAR ───────────────────────────────────────────────────────────────
-function drawAvatar(name, cx, cy, r, c) {
-  c.save();
-  c.beginPath(); c.arc(cx, cy, r, 0, Math.PI*2); c.clip();
-  const img = charImages[name];
-  if (img) {
-    c.drawImage(img, cx-r, cy-r, r*2, r*2);
-  } else {
-    const idx = CHARS.indexOf(name);
-    c.fillStyle = COLORS[idx % COLORS.length];
-    c.fillRect(cx-r, cy-r, r*2, r*2);
-    c.fillStyle = '#fff';
-    c.font = `bold ${Math.floor(r*0.55)}px Arial`;
-    c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText(name.slice(0,2).toUpperCase(), cx, cy);
-  }
-  c.restore();
-}
-
-// ── BALLOON FACTORY ───────────────────────────────────────────────────────────
-function makeBalloon(forceX) {
-  const c       = cfg();
-  const special = Math.random() < c.specialChance;
-  const rMin    = special ? Math.max(c.minR, 38) : c.minR;
-  const rMax    = special ? Math.min(c.maxR, 56) : c.maxR;
-  const r       = rMin + Math.random()*(rMax - rMin);
-  const charIdx = Math.floor(Math.random() * CHARS.length);
-  const spd     = c.speed + Math.random()*1.2;
-  // armored: L6+ has 20% chance of 2-hit balloon
-  const armored = c.armor && !special && Math.random() < 0.20;
+function cellXY(r,c){
   return {
-    x:  forceX !== undefined ? forceX : r + Math.random()*(W - 2*r),
-    y:  H + r + 5,
-    r,
-    charIdx,
-    vy:      -(spd * (special ? 1.3 : 1)),
-    drift:   (Math.random()-0.5)*0.55,
-    phase:   Math.random()*Math.PI*2,
-    // zigzag: horizontal sine oscillation
-    zigzag:  c.zigzag && !special,
-    zigFreq: 0.025 + Math.random()*0.02,
-    zigAmp:  30 + Math.random()*40,
-    zigT:    Math.random()*Math.PI*2,
-    special,
-    armored,
-    cracked: false, // armored hit once
-    alive:   true,
-    popping: false,
-    popT:    0,
-    points:  special ? 50 + level*5 : Math.max(10, Math.round(r * 0.58)) * c.scoreMulti,
-    wobbleT: Math.random()*Math.PI*2,
-    wobbleA: 0,
+    x: GL + (r%2===1 ? BR : 0) + BR + c*BR*2,
+    y: GT + BR + r*RH
   };
 }
 
-// ── SPAWN ─────────────────────────────────────────────────────────────────────
-function spawnOne(forceX) { if (gameActive) balloons.push(makeBalloon(forceX)); }
-
-function scheduleSpawning() {
-  clearInterval(spawnTimerId);
-  spawnTimerId = setInterval(spawnOne, cfg().spawnMs);
+function neighbors(r,c){
+  const odd=r%2===1;
+  return [
+    [r-1, odd?c:c-1],[r-1, odd?c+1:c],
+    [r,   c-1],      [r,   c+1],
+    [r+1, odd?c:c-1],[r+1, odd?c+1:c],
+  ].filter(([nr,nc])=>nr>=0&&nr<grid.length&&nc>=0&&nc<cols(nr));
 }
 
-function triggerWave() {
-  if (!gameActive) return;
-  const count   = cfg().waveCnt;
-  const spacing = W / (count+1);
-  for (let i = 0; i < count; i++) {
-    setTimeout(() => { if (gameActive) spawnOne(spacing*(i+1)); }, i*210);
+// ── GRID INIT ─────────────────────────────────────────────────────────────────
+function initGrid(){
+  grid=[];
+  const numChars = Math.min(CHARS.length, 2+Math.ceil(level/2));
+  const rows = 5 + Math.min(level-1, 5); // 5–10 rows
+  for(let r=0;r<rows;r++){
+    const row=[];
+    for(let c=0;c<cols(r);c++) row.push(Math.floor(Math.random()*numChars));
+    grid.push(row);
   }
 }
 
-// ── POP ───────────────────────────────────────────────────────────────────────
-function popBalloon(b) {
-  if (!b.alive) return;
-  // armored: first hit cracks it, second hit pops it
-  if (b.armored && !b.cracked) {
-    b.cracked  = true;
-    b.wobbleA  = 8; // shake
-    playPop(0.5);
-    floatTexts.push({ x:b.x, y:b.y-b.r, text:'CRACKED!', life:1, vy:-1.8, col:'#FF8B94' });
-    return;
-  }
-  b.alive   = false;
-  b.popping = true;
-  b.popT    = 0;
-
-  combo++;
-  clearTimeout(comboTimerId);
-  comboTimerId = setTimeout(() => { combo = 0; }, 1100);
-
-  const pts = b.points * (combo >= 3 ? combo : 1);
-  score += pts;
-  document.getElementById('score-display').textContent = '⭐ ' + score;
-
-  floatTexts.push({ x: b.x, y: b.y-b.r, text: '+'+pts, life: 1, vy: -2.2,
-                    col: b.special ? '#FFE66D' : '#ffffff' });
-
-  if (combo >= 3) {
-    playComboSound(combo);
-    const el = document.getElementById('combo-pop');
-    el.textContent = combo + '× COMBO!';
-    el.style.opacity = '1';
-    clearTimeout(el._t);
-    el._t = setTimeout(() => el.style.opacity='0', 650);
-  }
-
-  spawnBurst(b.x, b.y, COLORS[b.charIdx % COLORS.length], b.special);
-  playPop(b.special ? 1.6 : 0.75 + b.r/90);
+// ── RAND CHAR ────────────────────────────────────────────────────────────────
+function randChar(){
+  const present=new Set();
+  grid.forEach(row=>row.forEach(v=>{ if(v!==-1)present.add(v); }));
+  const pool=[...present];
+  if(!pool.length) return Math.floor(Math.random()*CHARS.length);
+  return pool[Math.floor(Math.random()*pool.length)];
 }
 
-// ── PARTICLES ─────────────────────────────────────────────────────────────────
-function spawnBurst(x, y, col, special) {
-  const n = special ? 42 : 30;
-  for (let i = 0; i < n; i++) {
-    if (particles.length >= MAX_PARTICLES) break;
-    const a   = (i/n)*Math.PI*2 + Math.random()*0.5;
-    const spd = (special ? 11 : 8) + Math.random()*11;
-    particles.push({
-      x, y,
-      vx: Math.cos(a)*spd,
-      vy: Math.sin(a)*spd - 4,
-      r:  (special ? 10 : 8) + Math.random()*11,
-      col: (i%4===0) ? '#fff' : (i%4===1) ? adjCol(col,-45) : col,
-      life:  1,
-      decay: 0.05 + Math.random()*0.045,
+// ── FLOOD FILL ───────────────────────────────────────────────────────────────
+function floodSame(r0,c0,ci){
+  const seen=new Set(), q=[[r0,c0]], res=[];
+  while(q.length){
+    const[r,c]=q.shift(), k=r+','+c;
+    if(seen.has(k))continue; seen.add(k);
+    if(r<0||r>=grid.length||c<0||c>=cols(r))continue;
+    if(grid[r][c]!==ci)continue;
+    res.push([r,c]);
+    neighbors(r,c).forEach(n=>q.push(n));
+  }
+  return res;
+}
+
+function findFloating(){
+  const connected=new Set(), q=[];
+  for(let c=0;c<cols(0);c++){
+    if(grid[0]?.[c]!==undefined&&grid[0][c]!==-1){ q.push([0,c]); connected.add('0,'+c); }
+  }
+  while(q.length){
+    const[r,c]=q.shift();
+    neighbors(r,c).forEach(([nr,nc])=>{
+      const k=nr+','+nc;
+      if(!connected.has(k)&&grid[nr]?.[nc]!==-1&&grid[nr][nc]!==undefined){
+        connected.add(k); q.push([nr,nc]);
+      }
     });
   }
-  if (special) {
-    for (let i = 0; i < 14; i++) {
-      if (particles.length >= MAX_PARTICLES) break;
-      particles.push({
-        x: x+(Math.random()-.5)*70, y: y+(Math.random()-.5)*70,
-        vx:(Math.random()-.5)*3.5,  vy:-2.5-Math.random()*3,
-        r: 5+Math.random()*6,
-        col:'#FFE66D', life:1, decay:0.04+Math.random()*0.03, star:true,
-      });
-    }
+  const fl=[];
+  grid.forEach((row,r)=>row.forEach((v,c)=>{ if(v!==-1&&!connected.has(r+','+c))fl.push([r,c]); }));
+  return fl;
+}
+
+// ── ATTACH + MATCH ────────────────────────────────────────────────────────────
+function attachAt(r,c,ci){
+  if(r<0||r>=grid.length||c<0||c>=cols(r))return;
+  grid[r][c]=ci;
+
+  // danger: bubble too low
+  const {y}=cellXY(r,c);
+  if(y+BR > H-SHOOT_ZONE-BR){
+    lives=Math.max(0,lives-1); updateLivesUI();
+    if(lives<=0){ gameActive=false; setTimeout(gameOver,400); return; }
+  }
+
+  const matched=floodSame(r,c,ci);
+  if(matched.length>=MIN_MATCH){
+    matched.forEach(([mr,mc])=>{
+      const p=cellXY(mr,mc);
+      burst(p.x,p.y,COLORS[ci]);
+      pops.push({x:p.x,y:p.y,charIdx:ci,t:0});
+      grid[mr][mc]=-1;
+    });
+    score+=matched.length*10*level;
+    document.getElementById('score-el').textContent='⭐ '+score;
+    playPop();
+
+    const fl=findFloating();
+    fl.forEach(([fr,fc])=>{
+      const p=cellXY(fr,fc);
+      drops.push({x:p.x,y:p.y,vy:1,acc:0.4,charIdx:grid[fr][fc]});
+      grid[fr][fc]=-1;
+    });
+    if(fl.length){ score+=fl.length*20*level; document.getElementById('score-el').textContent='⭐ '+score; }
+  }
+
+  // win check
+  if(!grid.some(row=>row.some(v=>v!==-1))) setTimeout(levelWin,700);
+}
+
+// ── FIND ATTACH CELL ──────────────────────────────────────────────────────────
+function findAttachCell(bx,by,hitR,hitC){
+  // Look for empty neighbor of the hit cell closest to bubble position
+  const cands=neighbors(hitR,hitC).filter(([r,c])=>grid[r]?.[c]===−1||grid[r]?.[c]===-1);
+  // also check if cell itself is free (edge case after chain pops)
+  if(grid[hitR][hitC]===-1) cands.push([hitR,hitC]);
+
+  let best=null,bestD=Infinity;
+  cands.forEach(([r,c])=>{
+    const{x,y}=cellXY(r,c);
+    const d=(bx-x)**2+(by-y)**2;
+    if(d<bestD){bestD=d;best=[r,c];}
+  });
+  if(best) attachAt(best[0],best[1],fly.charIdx);
+  else {
+    // fallback: find closest empty cell in entire grid near bubble
+    bestD=Infinity; best=null;
+    grid.forEach((row,r)=>row.forEach((v,c)=>{
+      if(v!==-1)return;
+      const{x,y}=cellXY(r,c);
+      const d=(bx-x)**2+(by-y)**2;
+      const hasN=r===0||neighbors(r,c).some(([nr,nc])=>grid[nr]?.[nc]!==-1&&grid[nr][nc]!==undefined);
+      if(hasN&&d<bestD){bestD=d;best=[r,c];}
+    }));
+    if(best) attachAt(best[0],best[1],fly.charIdx);
   }
 }
 
-// ── HIT TEST ──────────────────────────────────────────────────────────────────
-function handleTap(px, py) {
-  if (!gameActive) return;
-  for (let i = balloons.length-1; i >= 0; i--) {
-    const b = balloons[i];
-    if (!b.alive) continue;
-    const dx = px-b.x, dy = py-b.y;
-    if (dx*dx + dy*dy <= b.r*b.r) { popBalloon(b); return; }
+// ── TRY ATTACH ───────────────────────────────────────────────────────────────
+let SHOOT_ZONE = 130; // pixels from bottom for shooter area
+
+function tryAttach(){
+  if(!fly)return false;
+  // hit top wall
+  if(fly.y-BR<=GT+RH){
+    // find closest empty top-row cell
+    let best=null,bestD=Infinity;
+    for(let r=0;r<Math.min(3,grid.length);r++){
+      for(let c=0;c<cols(r);c++){
+        if(grid[r][c]!==-1)continue;
+        const{x,y}=cellXY(r,c);
+        const d=(fly.x-x)**2+(fly.y-y)**2;
+        const hasN=r===0||neighbors(r,c).some(([nr,nc])=>grid[nr]?.[nc]!==-1&&grid[nr][nc]!==undefined);
+        if(hasN&&d<bestD){bestD=d;best=[r,c];}
+      }
+    }
+    if(best)attachAt(best[0],best[1],fly.charIdx);
+    return true;
+  }
+  // hit a grid bubble
+  for(let r=0;r<grid.length;r++){
+    for(let c=0;c<cols(r);c++){
+      if(grid[r][c]===-1)continue;
+      const{x,y}=cellXY(r,c);
+      const dx=fly.x-x,dy=fly.y-y;
+      if(dx*dx+dy*dy<(BR*1.92)**2){
+        findAttachCell(fly.x,fly.y,r,c);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// ── SHOOT ────────────────────────────────────────────────────────────────────
+const SX = ()=>W/2;
+const SY = ()=>H-SHOOT_ZONE+32;
+
+function shoot(tx,ty){
+  if(!gameActive||!canShoot||fly)return;
+  let dx=tx-SX(), dy=ty-SY();
+  if(dy>=-10)return; // must shoot upward
+  const len=Math.sqrt(dx*dx+dy*dy);
+  fly={x:SX(),y:SY(),vx:dx/len*SHOOT_SPD,vy:dy/len*SHOOT_SPD,charIdx:currChar};
+  currChar=nextChar; nextChar=randChar();
+  canShoot=false;
+  playShoot();
+}
+
+// ── PARTICLES ────────────────────────────────────────────────────────────────
+function burst(x,y,col){
+  for(let i=0;i<22;i++){
+    const a=(i/22)*Math.PI*2+Math.random()*0.4, s=7+Math.random()*11;
+    parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-4,r:6+Math.random()*9,col,life:1,decay:0.055+Math.random()*0.04});
   }
 }
 
-// ── UPDATE (deltaTime-driven — frame-rate independent) ────────────────────────
-function update(dt) {
-  // balloons
-  for (let i = balloons.length-1; i >= 0; i--) {
-    const b = balloons[i];
-
-    if (b.popping) {
-      b.popT += 0.17 * dt;
-      if (b.popT >= 1) { balloons.splice(i,1); continue; }
-      continue;
+// ── UPDATE ───────────────────────────────────────────────────────────────────
+function update(dt){
+  if(fly){
+    fly.x+=fly.vx*dt; fly.y+=fly.vy*dt;
+    if(fly.x-BR<0) {fly.x=BR;   fly.vx=Math.abs(fly.vx);}
+    if(fly.x+BR>W) {fly.x=W-BR; fly.vx=-Math.abs(fly.vx);}
+    if(tryAttach()){
+      fly=null;
+      setTimeout(()=>{canShoot=true;},280);
     }
-    if (!b.alive) { balloons.splice(i,1); continue; }
-
-    b.y      += b.vy    * dt;
-    b.wobbleT+= 0.03  * dt;
-    b.wobbleA = Math.max(0, b.wobbleA - 0.07*dt);
-
-    if (b.zigzag) {
-      // sinusoidal horizontal sweep
-      b.zigT += b.zigFreq * dt;
-      b.x = Math.max(b.r, Math.min(W-b.r, b.x + Math.cos(b.zigT) * b.zigAmp * b.zigFreq * dt * 2));
-    } else {
-      b.x    += b.drift * dt + Math.sin(b.phase) * 0.38 * dt;
-      b.phase+= 0.019 * dt;
-      // wall bounce
-      if (b.x - b.r < 0)  { b.x = b.r;     b.drift =  Math.abs(b.drift); }
-      if (b.x + b.r > W)  { b.x = W - b.r; b.drift = -Math.abs(b.drift); }
-    }
-
-    // escaped top → lose life
-    if (b.y + b.r < 0) {
-      balloons.splice(i,1);
-      lives = Math.max(0, lives-1);
-      combo = 0;
-      playMiss();
-      updateLivesUI();
-      if (lives <= 0) { gameActive = false; setTimeout(gameOver, 200); }
-    }
+    if(fly&&fly.y<-BR*3){fly=null;setTimeout(()=>{canShoot=true;},200);}
   }
-
-  // particles
-  for (let i = particles.length-1; i >= 0; i--) {
-    const p = particles[i];
-    p.x    += p.vx  * dt;
-    p.y    += p.vy  * dt;
-    p.vy   += 0.28  * dt;
-    p.vx   *= Math.pow(0.972, dt);
-    p.life -= p.decay * dt;
-    if (p.life <= 0) particles.splice(i,1);
-  }
-
-  // float texts
-  for (let i = floatTexts.length-1; i >= 0; i--) {
-    const t = floatTexts[i];
-    t.y    += t.vy  * dt;
-    t.life -= 0.038 * dt;
-    if (t.life <= 0) floatTexts.splice(i,1);
-  }
+  pops.forEach(p=>p.t+=0.15*dt);
+  pops=pops.filter(p=>p.t<1);
+  drops.forEach(d=>{d.y+=d.vy*dt;d.vy+=d.acc*dt;});
+  drops=drops.filter(d=>d.y<H+BR*2);
+  parts.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=0.3*dt;p.vx*=Math.pow(0.97,dt);p.life-=p.decay*dt;});
+  parts=parts.filter(p=>p.life>0);
+  ftexts.forEach(t=>{t.y+=t.vy*dt;t.life-=0.038*dt;});
+  ftexts=ftexts.filter(t=>t.life>0);
+  if(bannerT>=0){bannerT+=0.025*dt;if(bannerT>1)bannerT=-1;}
 }
 
-// ── DRAW ──────────────────────────────────────────────────────────────────────
-function draw() {
-  ctx.clearRect(0, 0, W, H);
+// ── DRAW ─────────────────────────────────────────────────────────────────────
+function draw(){
+  ctx.clearRect(0,0,W,H);
 
-  // sky gradient (changes with level)
-  const c = cfg();
-  const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0,   c.skyTop);
-  sky.addColorStop(0.7, c.skyBot);
-  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+  // background gradient
+  const bg=ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#1a1a3e'); bg.addColorStop(1,'#2a1040');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
 
-  // stars on night levels (L6+)
-  if (level >= 6) {
-    ctx.fillStyle = `rgba(255,255,255,${Math.min(0.9, (level-5)*0.18)})`;
-    // deterministic star positions using simple hash
-    for (let i = 0; i < 60; i++) {
-      const sx = ((i*137.508 + 23) % W);
-      const sy = ((i*97.31  + 11) % (H*0.55));
-      const sr = 0.8 + (i%3)*0.6;
-      const pulse = 0.5 + 0.5*Math.sin(Date.now()*0.001 + i);
-      ctx.globalAlpha = pulse * Math.min(0.9, (level-5)*0.2);
-      ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI*2); ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-  }
+  // grid area backing
+  const gridH=grid.length*RH+BR*2;
+  ctx.fillStyle='rgba(200,220,255,0.05)';
+  ctx.fillRect(0,GT,W,gridH);
 
-  // clouds (drift right)
-  cloudOffsets = cloudOffsets.map(x => (x + 0.000065) % 1.15);
-  ctx.fillStyle = 'rgba(255,255,255,0.83)';
-  cloudOffsets.forEach((cx, i) => drawCloud(cx*W, cloudYs[i]*H, 52 + i*14));
+  // grid bubbles
+  grid.forEach((row,r)=>row.forEach((ci,c)=>{
+    if(ci===-1)return;
+    const{x,y}=cellXY(r,c);
+    drawBubble(x,y,ci,BR);
+  }));
 
-  // ground
-  ctx.fillStyle = '#57C165'; ctx.fillRect(0, H-38, W, 38);
-  ctx.fillStyle = '#3E9B4C'; ctx.fillRect(0, H-40, W, 5);
-
-  // particles (drawn below balloons)
-  drawParticles();
-
-  // balloons
-  balloons.forEach(b => {
-    if (b.popping) {
-      drawPopBurst(b);
-    } else if (b.alive) {
-      drawBalloon(b);
-    }
+  // pop bursts
+  pops.forEach(p=>{
+    const s=1+p.t*2.2, alpha=Math.max(0,1-p.t*1.8);
+    ctx.save(); ctx.globalAlpha=alpha; ctx.translate(p.x,p.y); ctx.scale(s,s);
+    drawBubbleBody(p.charIdx,BR,0,0); ctx.restore();
+    // shockwave
+    ctx.save(); ctx.globalAlpha=Math.max(0,0.5-p.t*1.2);
+    ctx.beginPath(); ctx.arc(p.x,p.y,BR*s*0.95,0,Math.PI*2);
+    ctx.strokeStyle=COLORS[p.charIdx%COLORS.length]; ctx.lineWidth=Math.max(0,5*(1-p.t)); ctx.stroke();
+    ctx.restore();
   });
 
-  // level-up banner
-  if (levelBanner.active) {
-    levelBanner.t += 0.03;
-    if (levelBanner.t > 1) { levelBanner.active = false; }
-    else {
-      const fade  = levelBanner.t < 0.3 ? levelBanner.t/0.3 : 1 - (levelBanner.t-0.3)/0.7;
-      const scale = 0.6 + levelBanner.t * 0.8;
+  // drops (floating bubbles falling)
+  drops.forEach(d=>drawBubble(d.x,d.y,d.charIdx,BR));
+
+  // particles
+  parts.forEach(p=>{
+    ctx.save(); ctx.globalAlpha=Math.max(0,p.life);
+    ctx.fillStyle=p.col; ctx.beginPath(); ctx.arc(p.x,p.y,Math.max(0.5,p.r*p.life),0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+
+  // aim line
+  drawAimLine();
+
+  // flying bubble
+  if(fly) drawBubble(fly.x,fly.y,fly.charIdx,BR);
+
+  // shooter zone
+  drawShooter();
+
+  // level banner
+  if(bannerT>=0&&bannerT<1){
+    const fade=bannerT<0.25?bannerT/0.25:Math.max(0,1-(bannerT-0.25)/0.75);
+    const sc=0.5+bannerT*0.9;
+    ctx.save(); ctx.globalAlpha=Math.max(0,fade);
+    ctx.font=`bold ${Math.floor(H*0.1*sc)}px Arial`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.strokeStyle='rgba(0,0,0,0.6)'; ctx.lineWidth=8;
+    ctx.strokeText(bannerTxt,W/2,H/2);
+    ctx.fillStyle='#FFE66D'; ctx.fillText(bannerTxt,W/2,H/2);
+    ctx.restore();
+  }
+
+  // floating texts
+  ftexts.forEach(t=>{
+    ctx.save(); ctx.globalAlpha=Math.min(1,t.life*2.5);
+    ctx.font=`bold 22px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.strokeStyle='rgba(0,0,0,0.6)'; ctx.lineWidth=3; ctx.strokeText(t.text,t.x,t.y);
+    ctx.fillStyle=t.col; ctx.fillText(t.text,t.x,t.y);
+    ctx.restore();
+  });
+}
+
+// ── DRAW BUBBLE ───────────────────────────────────────────────────────────────
+function drawBubble(x,y,ci,r){
+  ctx.save(); ctx.translate(x,y); drawBubbleBody(ci,r,0,0); ctx.restore();
+}
+
+function drawBubbleBody(ci,r,ox,oy){
+  const col=COLORS[ci%COLORS.length];
+  // shadow
+  ctx.save();
+  ctx.shadowColor='rgba(0,0,0,0.45)'; ctx.shadowBlur=7; ctx.shadowOffsetY=3;
+  ctx.beginPath(); ctx.arc(ox,oy,r,0,Math.PI*2);
+  const g=ctx.createRadialGradient(ox-r*0.35,oy-r*0.38,r*0.04,ox,oy,r);
+  g.addColorStop(0,adjCol(col,75)); g.addColorStop(0.55,col); g.addColorStop(1,adjCol(col,-50));
+  ctx.fillStyle=g; ctx.fill();
+  ctx.restore();
+  // face
+  drawFace(CHARS[ci],ox,oy,r*0.70);
+  // glossy highlight
+  ctx.save();
+  const hl=ctx.createRadialGradient(ox-r*0.28,oy-r*0.38,r*0.02,ox-r*0.1,oy-r*0.15,r*0.55);
+  hl.addColorStop(0,'rgba(255,255,255,0.78)'); hl.addColorStop(0.5,'rgba(255,255,255,0.14)'); hl.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.beginPath(); ctx.arc(ox,oy,r,0,Math.PI*2); ctx.fillStyle=hl; ctx.fill();
+  ctx.restore();
+}
+
+function drawFace(name,cx,cy,r){
+  ctx.save(); ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.clip();
+  const img=charImages[name];
+  if(img){ ctx.drawImage(img,cx-r,cy-r,r*2,r*2); }
+  else {
+    const idx=CHARS.indexOf(name);
+    ctx.fillStyle=COLORS[idx%COLORS.length]; ctx.fillRect(cx-r,cy-r,r*2,r*2);
+    ctx.fillStyle='#fff'; ctx.font=`bold ${Math.floor(r*0.55)}px Arial`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(name.slice(0,2).toUpperCase(),cx,cy);
+  }
+  ctx.restore();
+}
+
+// ── DRAW SHOOTER ──────────────────────────────────────────────────────────────
+function drawShooter(){
+  const sx=SX(), sy=SY();
+
+  // dark shooter zone backdrop
+  ctx.save();
+  const zt=ctx.createLinearGradient(0,H-SHOOT_ZONE,0,H);
+  zt.addColorStop(0,'rgba(10,10,30,0)'); zt.addColorStop(0.3,'rgba(10,10,30,0.9)'); zt.addColorStop(1,'rgba(5,5,20,1)');
+  ctx.fillStyle=zt; ctx.fillRect(0,H-SHOOT_ZONE,W,SHOOT_ZONE);
+  ctx.restore();
+
+  // separator line
+  ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=1.5;
+  ctx.setLineDash([6,10]);
+  ctx.beginPath(); ctx.moveTo(0,H-SHOOT_ZONE); ctx.lineTo(W,H-SHOOT_ZONE); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // cannon base glow
+  const cg=ctx.createRadialGradient(sx,sy+10,5,sx,sy,55);
+  cg.addColorStop(0,'rgba(100,150,255,0.22)'); cg.addColorStop(1,'rgba(100,150,255,0)');
+  ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(sx,sy,55,0,Math.PI*2); ctx.fill();
+
+  // current bubble on launcher
+  drawBubble(sx,sy,currChar,BR);
+
+  // arrow showing aim direction
+  if(aimPt&&canShoot&&!fly){
+    let dx=aimPt.x-sx, dy=aimPt.y-sy;
+    if(dy<-10){
+      const len=Math.sqrt(dx*dx+dy*dy);
+      dx/=len; dy/=len;
+      const ax=sx+dx*(BR+14), ay=sy+dy*(BR+14);
       ctx.save();
-      ctx.globalAlpha = Math.max(0, fade);
-      ctx.font = `bold ${Math.floor(H * 0.09 * scale)}px Arial`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 8;
-      ctx.strokeText(levelBanner.text, W/2, H/2);
-      ctx.fillStyle = '#FFE66D';
-      ctx.fillText(levelBanner.text, W/2, H/2);
+      ctx.strokeStyle='rgba(255,255,255,0.45)'; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ax,ay); ctx.stroke();
       ctx.restore();
     }
   }
 
-  // floating score texts
-  floatTexts.forEach(t => {
-    ctx.save();
-    ctx.globalAlpha = Math.min(1, t.life * 2.2);
-    ctx.font = `bold ${t.col === '#FFE66D' ? 28 : 22}px Arial`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 3.5;
-    ctx.strokeText(t.text, t.x, t.y);
-    ctx.fillStyle = t.col;
-    ctx.fillText(t.text, t.x, t.y);
-    ctx.restore();
-  });
-}
-
-function drawCloud(x, y, r) {
-  ctx.beginPath();
-  ctx.arc(x,        y,         r,      0, Math.PI*2);
-  ctx.arc(x+r*0.9,  y-r*0.38,  r*0.7,  0, Math.PI*2);
-  ctx.arc(x+r*1.75, y,         r*0.82, 0, Math.PI*2);
-  ctx.fill();
-}
-
-function drawParticles() {
-  particles.forEach(p => {
-    ctx.save();
-    ctx.globalAlpha = Math.max(0, p.life);
-    ctx.fillStyle = p.col;
-    if (p.star) {
-      drawStar(p.x, p.y, Math.max(1, p.r * p.life));
-    } else {
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, Math.max(0.5, p.r * p.life), 0, Math.PI*2);
-      ctx.fill();
-    }
-    ctx.restore();
-  });
-}
-
-function drawStar(x, y, r) {
-  ctx.beginPath();
-  for (let i = 0; i < 10; i++) {
-    const a = (i * Math.PI/5) - Math.PI/2;
-    const d = i%2===0 ? r : r*0.42;
-    if (i===0) ctx.moveTo(x+Math.cos(a)*d, y+Math.sin(a)*d);
-    else        ctx.lineTo(x+Math.cos(a)*d, y+Math.sin(a)*d);
-  }
-  ctx.closePath(); ctx.fill();
-}
-
-function drawBalloon(b) {
-  const { x, y, wobbleT, wobbleA } = b;
-  const wx = Math.sin(wobbleT*2.5) * wobbleA * 5;
-
+  // next bubble preview (top-right of shooter)
+  const nx=Math.min(W-BR-8, sx+BR*3.2), ny=sy-BR*0.3;
+  ctx.save(); ctx.globalAlpha=0.75;
+  drawBubble(nx,ny,nextChar,BR*0.65);
+  ctx.restore();
   ctx.save();
-  ctx.translate(x + wx, y);
-
-  // string
-  ctx.beginPath();
-  ctx.moveTo(0, b.r); ctx.quadraticCurveTo(6, b.r+18, 1, b.r+30);
-  ctx.strokeStyle = 'rgba(0,0,0,0.32)'; ctx.lineWidth = 1.5; ctx.stroke();
-
-  drawBalloonBody(ctx, b, 0, 0);
-
-  // crack overlay for armored balloons
-  if (b.armored && b.cracked) {
-    ctx.save();
-    ctx.strokeStyle = 'rgba(0,0,0,0.7)';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    // lightning-bolt crack pattern
-    ctx.moveTo(-b.r*0.1, -b.r*0.5);
-    ctx.lineTo( b.r*0.2, -b.r*0.1);
-    ctx.lineTo(-b.r*0.1,  b.r*0.1);
-    ctx.lineTo( b.r*0.3,  b.r*0.5);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(-b.r*0.3, -b.r*0.3);
-    ctx.lineTo(-b.r*0.05, 0);
-    ctx.lineTo(-b.r*0.35, b.r*0.3);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  // golden glow for special
-  if (b.special) {
-    const pulse = 0.45 + 0.22*Math.sin(Date.now()*0.005);
-    ctx.beginPath();
-    ctx.ellipse(0, 0, b.r*0.9, b.r, 0, 0, Math.PI*2);
-    ctx.strokeStyle = `rgba(255,210,0,${pulse})`;
-    ctx.lineWidth = 4; ctx.stroke();
-    const glow = ctx.createRadialGradient(0,0,b.r*0.6, 0,0,b.r*1.35);
-    glow.addColorStop(0, 'rgba(255,210,0,0)');
-    glow.addColorStop(0.6, `rgba(255,210,0,${pulse*0.35})`);
-    glow.addColorStop(1, 'rgba(255,210,0,0)');
-    ctx.beginPath(); ctx.arc(0,0,b.r*1.35,0,Math.PI*2);
-    ctx.fillStyle = glow; ctx.fill();
-  }
-
+  ctx.fillStyle='rgba(255,255,255,0.45)'; ctx.font=`bold 11px Arial`;
+  ctx.textAlign='center'; ctx.textBaseline='bottom';
+  ctx.fillText('NEXT',nx,ny-BR*0.65-3);
   ctx.restore();
 }
 
-function drawBalloonBody(c, b, ox, oy) {
-  const r   = b.r;
-  const col = COLORS[b.charIdx % COLORS.length];
+// ── DRAW AIM LINE ─────────────────────────────────────────────────────────────
+function drawAimLine(){
+  if(!aimPt||!canShoot||fly)return;
+  const sx=SX(), sy=SY();
+  let dx=aimPt.x-sx, dy=aimPt.y-sy;
+  if(dy>=-10)return;
+  const len=Math.sqrt(dx*dx+dy*dy);
+  dx/=len; dy/=len;
 
-  // body
-  c.beginPath(); c.ellipse(ox, oy, r*0.88, r, 0, 0, Math.PI*2);
-  const grad = c.createRadialGradient(ox-r*0.3, oy-r*0.3, r*0.04, ox, oy, r);
-  grad.addColorStop(0,   adjCol(col,  65));
-  grad.addColorStop(0.6, col);
-  grad.addColorStop(1,   adjCol(col, -45));
-  c.fillStyle = grad; c.fill();
-
-  // highlight
-  c.beginPath(); c.ellipse(ox-r*0.24, oy-r*0.3, r*0.19, r*0.12, -0.5, 0, Math.PI*2);
-  c.fillStyle = 'rgba(255,255,255,0.52)'; c.fill();
-
-  // face (large, prominent)
-  drawAvatar(CHARS[b.charIdx], ox, oy - r*0.06, r*0.70, c);
-
-  // knot
-  c.beginPath(); c.ellipse(ox, oy+r+1, 5, 7, 0, 0, Math.PI*2);
-  c.fillStyle = adjCol(col,-32); c.fill();
-}
-
-function drawPopBurst(b) {
-  const s     = 1 + b.popT * 3.0;
-  const alpha = Math.max(0, 1 - b.popT * 1.9);
-
-  // expanding balloon silhouette
   ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.translate(b.x, b.y);
-  ctx.scale(s, s);
-  drawBalloonBody(ctx, b, 0, 0);
-  ctx.restore();
+  ctx.strokeStyle='rgba(255,255,255,0.45)'; ctx.lineWidth=2;
+  ctx.setLineDash([7,10]);
+  ctx.beginPath(); ctx.moveTo(sx,sy);
 
-  // shockwave ring
-  ctx.save();
-  ctx.globalAlpha = Math.max(0, 0.65 - b.popT * 1.4);
-  ctx.beginPath();
-  ctx.arc(b.x, b.y, b.r * s * 0.92, 0, Math.PI*2);
-  ctx.strokeStyle = COLORS[b.charIdx % COLORS.length];
-  ctx.lineWidth = Math.max(0, 6 * (1 - b.popT));
+  let x=sx,y=sy,vx=dx,vy=dy;
+  for(let i=0;i<500;i++){
+    x+=vx*4; y+=vy*4;
+    if(x-BR<0){x=BR;vx=Math.abs(vx);}
+    if(x+BR>W){x=W-BR;vx=-Math.abs(vx);}
+    ctx.lineTo(x,y);
+    if(y<GT+BR*2)break;
+  }
   ctx.stroke();
+
+  // aim dot at line end
+  ctx.setLineDash([]);
+  ctx.fillStyle='rgba(255,255,255,0.6)';
+  ctx.beginPath(); ctx.arc(x,y,5,0,Math.PI*2); ctx.fill();
   ctx.restore();
 }
 
-// ── LIVES UI ──────────────────────────────────────────────────────────────────
-function updateLivesUI() {
-  const full  = Math.max(0, lives);
-  const empty = Math.max(0, MAX_LIVES - lives);
-  document.getElementById('lives-display').textContent = '❤️'.repeat(full) + '🖤'.repeat(empty);
+// ── COLOR UTIL ────────────────────────────────────────────────────────────────
+function adjCol(hex,amt){
+  if(!hex.startsWith('#'))return hex;
+  const r=Math.max(0,Math.min(255,parseInt(hex.slice(1,3),16)+amt));
+  const g=Math.max(0,Math.min(255,parseInt(hex.slice(3,5),16)+amt));
+  const b=Math.max(0,Math.min(255,parseInt(hex.slice(5,7),16)+amt));
+  return `rgb(${r},${g},${b})`;
 }
 
-// ── LEVEL UP ──────────────────────────────────────────────────────────────────
-function doLevelUp() {
-  if (!gameActive) return;
+// ── UI ────────────────────────────────────────────────────────────────────────
+function updateLivesUI(){
+  document.getElementById('lives-el').textContent='❤️'.repeat(Math.max(0,lives))+'🖤'.repeat(Math.max(0,MAX_LIVES-lives));
+}
+
+// ── WIN / LOSE ────────────────────────────────────────────────────────────────
+function levelWin(){
+  playWin();
+  bannerTxt=`🎉 Level ${level} Clear!`; bannerT=0;
   level++;
-  const el = document.getElementById('level-display');
-  const isMax = level >= LEVEL_CFG.length;
-  el.textContent = isMax ? `⚡ MAX LEVEL ${level}` : 'Level ' + level;
-  el.style.fontSize = '24px';
-  el.style.color = '#FF6B6B';
-  setTimeout(() => { el.style.fontSize = '17px'; el.style.color = '#FFE66D'; }, 1000);
-  scheduleSpawning();
-  playLevelUp();
-  levelBanner.active = true;
-  levelBanner.t      = 0;
-  levelBanner.text   = level >= LEVEL_CFG.length ? `⚡ CHAOS! ⚡` : `🎈 Level ${level}!`;
+  document.getElementById('level-el').textContent='Level '+level;
+  setTimeout(()=>{
+    const ov=document.getElementById('overlay');
+    ov.innerHTML=`<h1>🎉 Level ${level-1} Clear!</h1>
+      <div class="fscore">⭐ ${score}</div>
+      <button id="start-btn" style="margin-top:8px">▶ Level ${level}</button>`;
+    ov.style.display='flex';
+    document.getElementById('start-btn').onclick=startRound;
+  },1800);
 }
 
-// ── GAME OVER ─────────────────────────────────────────────────────────────────
-function gameOver() {
-  gameActive = false;
-  clearInterval(spawnTimerId);
-  clearInterval(levelTimerId);
-  clearTimeout(waveTimerId);
-  const ov = document.getElementById('overlay');
-  ov.innerHTML = `
-    <h1>💥 Game Over!</h1>
-    <div class="final-score">⭐ ${score}</div>
-    <p class="subtitle">Level reached: ${level}</p>
-    <button id="start-btn" style="margin-top:28px">🎈 Play Again</button>
-  `;
-  ov.style.display = 'flex';
-  document.getElementById('start-btn').onclick = startGame;
+function gameOver(){
+  gameActive=false;
+  const ov=document.getElementById('overlay');
+  ov.innerHTML=`<h1>💥 Game Over!</h1>
+    <div class="fscore">⭐ ${score}</div>
+    <div class="sub">Level reached: ${level}</div>
+    <button id="start-btn" style="margin-top:20px">🎈 Play Again</button>`;
+  ov.style.display='flex';
+  document.getElementById('start-btn').onclick=()=>{
+    score=0;lives=MAX_LIVES;level=1;
+    document.getElementById('score-el').textContent='⭐ 0';
+    document.getElementById('level-el').textContent='Level 1';
+    updateLivesUI(); startRound();
+  };
 }
 
-// ── START ─────────────────────────────────────────────────────────────────────
-function startGame() {
-  score = 0; lives = MAX_LIVES; level = 1; combo = 0;
-  balloons = []; particles = []; floatTexts = [];
-
-  document.getElementById('score-display').textContent = '⭐ 0';
-  const lel = document.getElementById('level-display');
-  lel.textContent = 'Level 1'; lel.style.fontSize = '17px'; lel.style.color = '#FFE66D';
-  updateLivesUI();
-  document.getElementById('overlay').style.display = 'none';
-
-  try {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-  } catch(e) {}
-
-  gameActive = true;
-  scheduleSpawning();
-  levelTimerId = setInterval(doLevelUp, LEVEL_INTERVAL);
-
-  function scheduleNextWave() {
-    waveTimerId = setTimeout(() => {
-      if (gameActive) { triggerWave(); scheduleNextWave(); }
-    }, cfg().waveMs);
-  }
-  scheduleNextWave();
-
-  setTimeout(spawnOne, 250); // first balloon immediately
+// ── START ROUND ───────────────────────────────────────────────────────────────
+function startRound(){
+  document.getElementById('overlay').style.display='none';
+  pops=[];drops=[];parts=[];ftexts=[];fly=null;canShoot=true;bannerT=-1;
+  initGrid();
+  currChar=randChar(); nextChar=randChar();
+  gameActive=true;
+  try{
+    if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended')audioCtx.resume();
+  }catch(e){}
 }
 
-// ── MAIN LOOP (deltaTime-corrected) ───────────────────────────────────────────
-function loop(ts) {
+// ── LOOP ─────────────────────────────────────────────────────────────────────
+function loop(ts){
   requestAnimationFrame(loop);
-  // dt = 1.0 at 60fps, 2.0 at 30fps — keeps speed constant regardless of frame rate
-  const dt = lastTs ? Math.min((ts - lastTs) / 16.667, 5) : 1;
-  lastTs = ts;
-  try {
-    if (gameActive) update(dt);
-    draw();
-  } catch(e) { console.error('loop error:', e); }
+  const dt=lastTs?Math.min((ts-lastTs)/16.667,4):1; lastTs=ts;
+  try{if(gameActive)update(dt);draw();}catch(e){console.error(e);}
 }
 
-// ── RESIZE ────────────────────────────────────────────────────────────────────
-function resize() {
-  W = canvas.width  = window.innerWidth;
-  H = canvas.height = window.innerHeight;
+// ── RESIZE ───────────────────────────────────────────────────────────────────
+function resize(){
+  W=canvas.width=window.innerWidth;
+  H=canvas.height=window.innerHeight;
+  SHOOT_ZONE=Math.min(160,Math.max(110,H*0.18));
+  BR=Math.min(44,Math.max(18,Math.floor(W/(NUM_COLS*2+1))));
+  GL=(W-NUM_COLS*BR*2)/2;
+  GT=UI_H;
+  RH=Math.floor(BR*Math.sqrt(3));
 }
 
-// ── INIT ──────────────────────────────────────────────────────────────────────
-canvas = document.getElementById('gameCanvas');
-ctx    = canvas.getContext('2d');
-resize();
-window.addEventListener('resize', resize);
+// ── INPUT ────────────────────────────────────────────────────────────────────
+canvas=document.getElementById('c');
+ctx=canvas.getContext('2d');
+resize(); window.addEventListener('resize',resize);
 
-// ── INPUT ─────────────────────────────────────────────────────────────────────
-canvas.addEventListener('click', e => {
-  const rect = canvas.getBoundingClientRect();
-  handleTap(e.clientX - rect.left, e.clientY - rect.top);
+canvas.addEventListener('mousemove',e=>{
+  const r=canvas.getBoundingClientRect();
+  aimPt={x:e.clientX-r.left,y:e.clientY-r.top};
 });
-canvas.addEventListener('touchstart', e => {
+canvas.addEventListener('click',e=>{
+  const r=canvas.getBoundingClientRect();
+  shoot(e.clientX-r.left,e.clientY-r.top);
+});
+canvas.addEventListener('touchstart',e=>{
   e.preventDefault();
-  const rect = canvas.getBoundingClientRect();
-  for (const t of e.changedTouches) handleTap(t.clientX - rect.left, t.clientY - rect.top);
-}, { passive: false });
+  const r=canvas.getBoundingClientRect(),t=e.changedTouches[0];
+  aimPt={x:t.clientX-r.left,y:t.clientY-r.top};
+  shoot(aimPt.x,aimPt.y);
+},{passive:false});
+canvas.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  const r=canvas.getBoundingClientRect(),t=e.changedTouches[0];
+  aimPt={x:t.clientX-r.left,y:t.clientY-r.top};
+},{passive:false});
 
-document.getElementById('mute-btn').onclick = () => {
-  muted = !muted;
-  document.getElementById('mute-btn').textContent = muted ? '🔇' : '🔊';
-  try {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-  } catch(e) {}
+document.getElementById('mute').onclick=()=>{
+  muted=!muted; document.getElementById('mute').textContent=muted?'🔇':'🔊';
 };
-document.getElementById('start-btn').onclick = startGame;
+document.getElementById('start-btn').onclick=()=>{
+  score=0;lives=MAX_LIVES;level=1;
+  document.getElementById('score-el').textContent='⭐ 0';
+  document.getElementById('level-el').textContent='Level 1';
+  updateLivesUI(); startRound();
+};
 
-loadImages(() => requestAnimationFrame(loop));
+loadImages(()=>requestAnimationFrame(loop));
 </script>
 </body>
 </html>
