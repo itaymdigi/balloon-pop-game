@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Balloon Pop Game!</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: linear-gradient(180deg, #87CEEB 0%, #B0E0FF 60%, #90EE90 100%);
+    overflow: hidden;
+    font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+    user-select: none;
+    touch-action: none;
+  }
+  #gameCanvas { display: block; }
+  #ui {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #score {
+    background: rgba(255,255,255,0.85);
+    border-radius: 20px;
+    padding: 8px 18px;
+    font-size: 22px;
+    font-weight: bold;
+    color: #333;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+  }
+  #muteBtn {
+    background: rgba(255,255,255,0.85);
+    border: none;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    font-size: 24px;
+    cursor: pointer;
+    pointer-events: all;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.1s;
+  }
+  #muteBtn:active { transform: scale(0.9); }
+  #overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    color: white;
+    text-align: center;
+  }
+  #overlay h1 { font-size: 52px; text-shadow: 0 3px 10px rgba(0,0,0,0.5); margin-bottom: 10px; }
+  #overlay p { font-size: 24px; margin-bottom: 30px; opacity: 0.9; }
+  #overlay button {
+    background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+    color: white;
+    border: none;
+    border-radius: 30px;
+    padding: 16px 48px;
+    font-size: 26px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(255,100,100,0.5);
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+  #overlay button:active { transform: scale(0.95); box-shadow: 0 3px 10px rgba(255,100,100,0.5); }
+  #controls-hint {
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255,255,255,0.7);
+    border-radius: 14px;
+    padding: 5px 16px;
+    font-size: 13px;
+    color: #555;
+    pointer-events: none;
+    z-index: 10;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+<div id="ui">
+  <div id="score">⭐ 0</div>
+  <button id="muteBtn">🔊</button>
+</div>
+<canvas id="gameCanvas"></canvas>
+<div id="controls-hint">⬅➡ Move &nbsp;|&nbsp; ⬆ Throw &nbsp;|&nbsp; Touch: Tap to throw, swipe to move</div>
+<div id="overlay">
+  <h1>🎈 Balloon Pop!</h1>
+  <p>Throw the ball to pop matching balloons!</p>
+  <button id="startBtn">▶ Start Game</button>
+</div>
+
+<script>
+// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+const CHARS = ['adiel','itamar','raz','ron','yoni'];
+const COLORS = ['#FF6B6B','#4ECDC4','#FFE66D','#A8E6CF','#FF8B94'];
+const BALLOON_ROWS = 3;
+const BALLOON_COLS = 5;
+const BALLOONS_PER_ROW = 5;
+const GRAVITY = 0.18;
+const THROW_POWER = 14;
+const PLAYER_SPEED = 5;
+const BALLOON_RADIUS = 36;
+const BALL_RADIUS = 30;
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let W, H, canvas, ctx;
+let muted = false;
+let score = 0;
+let gameActive = false;
+let audioCtx = null;
+
+let player = { x: 0, y: 0, w: 80, h: 100, charIdx: 0 };
+let ball = { x: 0, y: 0, vx: 0, vy: 0, active: false, charIdx: 0, angle: 0 };
+let ballHeld = true;
+let aimAngle = -Math.PI / 2; // straight up
+let balloons = [];
+let particles = [];
+let charImages = {}; // { name: HTMLImageElement | null }
+let imagesLoaded = false;
+let pendingImages = CHARS.length;
+
+// keys
+const keys = {};
+
+// touch
+let touchStart = null;
+let lastTouchX = null;
+
+// ─── AUDIO ────────────────────────────────────────────────────────────────────
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playTone(freq, dur, type = 'sine', vol = 0.3) {
+  if (muted) return;
+  try {
+    const ac = getAudioCtx();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.connect(gain); gain.connect(ac.destination);
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ac.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.5, ac.currentTime + dur);
+    gain.gain.setValueAtTime(vol, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+    osc.start(); osc.stop(ac.currentTime + dur);
+  } catch(e) {}
+}
+
+function playThrow() { playTone(300, 0.25, 'sawtooth', 0.2); }
+function playPop() {
+  if (muted) return;
+  try {
+    const ac = getAudioCtx();
+    const buf = ac.createBuffer(1, ac.sampleRate * 0.15, ac.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    }
+    const src = ac.createBufferSource();
+    const gain = ac.createGain();
+    const filter = ac.createBiquadFilter();
+    src.buffer = buf;
+    filter.type = 'bandpass';
+    filter.frequency.value = 800;
+    src.connect(filter); filter.connect(gain); gain.connect(ac.destination);
+    gain.gain.setValueAtTime(0.6, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.15);
+    src.start();
+  } catch(e) {}
+}
+function playWin() {
+  [523, 659, 784, 1047].forEach((f, i) => {
+    setTimeout(() => playTone(f, 0.4, 'triangle', 0.3), i * 120);
+  });
+}
+
+// ─── IMAGE LOADING ────────────────────────────────────────────────────────────
+function loadImages(cb) {
+  CHARS.forEach((name, i) => {
+    const img = new Image();
+    img.onload = () => { charImages[name] = img; checkDone(); };
+    img.onerror = () => { charImages[name] = null; checkDone(); };
+    img.src = name + '.png';
+  });
+  function checkDone() {
+    pendingImages--;
+    if (pendingImages === 0) { imagesLoaded = true; cb(); }
+  }
+}
+
+// ─── DRAW AVATAR ─────────────────────────────────────────────────────────────
+function drawAvatar(name, cx, cy, r, ctx2d) {
+  const img = charImages[name];
+  ctx2d.save();
+  ctx2d.beginPath();
+  ctx2d.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx2d.clip();
+  if (img) {
+    ctx2d.drawImage(img, cx - r, cy - r, r * 2, r * 2);
+  } else {
+    // colorful placeholder
+    const idx = CHARS.indexOf(name);
+    const col = COLORS[idx % COLORS.length];
+    ctx2d.fillStyle = col;
+    ctx2d.fillRect(cx - r, cy - r, r * 2, r * 2);
+    ctx2d.fillStyle = '#fff';
+    ctx2d.font = `bold ${Math.floor(r * 0.55)}px Arial`;
+    ctx2d.textAlign = 'center';
+    ctx2d.textBaseline = 'middle';
+    ctx2d.fillText(name.slice(0, 2).toUpperCase(), cx, cy);
+  }
+  ctx2d.restore();
+}
+
+// ─── BALLOON ─────────────────────────────────────────────────────────────────
+function drawBalloon(b) {
+  if (!b.alive) return;
+  const { x, y, charIdx, wobble, wobbleT } = b;
+  const r = BALLOON_RADIUS;
+  const wobbleX = Math.sin(wobbleT * 3) * wobble * 4;
+
+  ctx.save();
+  ctx.translate(x + wobbleX, y);
+
+  // string
+  ctx.beginPath();
+  ctx.moveTo(0, r + 2);
+  ctx.quadraticCurveTo(8, r + 20, 2, r + 38);
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // balloon body
+  const col = COLORS[charIdx % COLORS.length];
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r * 0.88, r, 0, 0, Math.PI * 2);
+  const grad = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.05, 0, 0, r);
+  grad.addColorStop(0, lighten(col, 60));
+  grad.addColorStop(0.6, col);
+  grad.addColorStop(1, darken(col, 40));
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // highlight
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.25, -r * 0.3, r * 0.2, r * 0.12, -0.5, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fill();
+
+  // face
+  drawAvatar(CHARS[charIdx], 0, -r * 0.05, r * 0.58, ctx);
+
+  // knot
+  ctx.beginPath();
+  ctx.ellipse(0, r + 1, 5, 7, 0, 0, Math.PI * 2);
+  ctx.fillStyle = darken(col, 30);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function lighten(hex, amt) {
+  return adjustColor(hex, amt);
+}
+function darken(hex, amt) {
+  return adjustColor(hex, -amt);
+}
+function adjustColor(hex, amt) {
+  let r = parseInt(hex.slice(1, 3), 16);
+  let g = parseInt(hex.slice(3, 5), 16);
+  let b = parseInt(hex.slice(5, 7), 16);
+  r = Math.max(0, Math.min(255, r + amt));
+  g = Math.max(0, Math.min(255, g + amt));
+  b = Math.max(0, Math.min(255, b + amt));
+  return `rgb(${r},${g},${b})`;
+}
+
+// ─── PLAYER ───────────────────────────────────────────────────────────────────
+function drawPlayer() {
+  const { x, y, charIdx } = player;
+  // body
+  ctx.save();
+  ctx.translate(x, y);
+  // shadow
+  ctx.beginPath();
+  ctx.ellipse(0, 52, 32, 10, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.fill();
+  // torso
+  ctx.fillStyle = COLORS[charIdx % COLORS.length];
+  ctx.beginPath();
+  ctx.roundRect(-22, 10, 44, 42, 8);
+  ctx.fill();
+  // head
+  drawAvatar(CHARS[charIdx], 0, -16, 28, ctx);
+  // arm holding ball
+  if (ballHeld) {
+    const armAngle = aimAngle + Math.PI / 2; // rotate by 90 to get arm direction
+    const armX = Math.cos(aimAngle) * 40;
+    const armY = Math.sin(aimAngle) * 40;
+    ctx.beginPath();
+    ctx.moveTo(18, 20);
+    ctx.lineTo(18 + armX, 20 + armY);
+    ctx.strokeStyle = COLORS[charIdx % COLORS.length];
+    ctx.lineWidth = 10;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ─── BALL ─────────────────────────────────────────────────────────────────────
+function drawBall() {
+  if (!ball.active && !ballHeld) return;
+  let bx, by;
+  if (ballHeld) {
+    const armX = Math.cos(aimAngle) * 48;
+    const armY = Math.sin(aimAngle) * 48;
+    bx = player.x + 18 + armX;
+    by = player.y + 20 + armY;
+  } else {
+    bx = ball.x;
+    by = ball.y;
+  }
+  const r = BALL_RADIUS;
+  ctx.save();
+  ctx.translate(bx, by);
+  // shadow
+  ctx.beginPath();
+  ctx.ellipse(0, r + 4, r * 0.7, 8, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.fill();
+  // ball circle
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  const col = COLORS[ball.charIdx % COLORS.length];
+  const grad = ctx.createRadialGradient(-r * 0.3, -r * 0.3, 2, 0, 0, r);
+  grad.addColorStop(0, lighten(col, 50));
+  grad.addColorStop(1, darken(col, 20));
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.strokeStyle = darken(col, 40);
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  // face
+  drawAvatar(CHARS[ball.charIdx], 0, 0, r * 0.8, ctx);
+  ctx.restore();
+}
+
+// ─── AIM LINE ─────────────────────────────────────────────────────────────────
+function drawAimLine() {
+  if (!ballHeld) return;
+  const startX = player.x + 18 + Math.cos(aimAngle) * 60;
+  const startY = player.y + 20 + Math.sin(aimAngle) * 60;
+  ctx.save();
+  ctx.setLineDash([6, 8]);
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(startX, startY);
+  for (let i = 1; i <= 5; i++) {
+    const t = i * 12;
+    const px = startX + Math.cos(aimAngle) * t;
+    const py = startY + Math.sin(aimAngle) * t;
+    if (i === 1) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ─── PARTICLES ────────────────────────────────────────────────────────────────
+function spawnParticles(x, y, col) {
+  for (let i = 0; i < 18; i++) {
+    const angle = (i / 18) * Math.PI * 2 + Math.random() * 0.3;
+    const speed = 3 + Math.random() * 6;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 2,
+      r: 6 + Math.random() * 8,
+      col,
+      life: 1,
+      decay: 0.025 + Math.random() * 0.03,
+    });
+  }
+  // rubber bits
+  for (let i = 0; i < 8; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * (2 + Math.random() * 4),
+      vy: Math.sin(angle) * (2 + Math.random() * 4) - 3,
+      r: 3 + Math.random() * 4,
+      col: darken(col, 30),
+      life: 1,
+      decay: 0.04 + Math.random() * 0.04,
+    });
+  }
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.15;
+    p.vx *= 0.97;
+    p.life -= p.decay;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.col;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+}
+
+// ─── SETUP ────────────────────────────────────────────────────────────────────
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  if (gameActive) repositionPlayer();
+}
+
+function repositionPlayer() {
+  player.y = H - 120;
+  if (player.x < 40) player.x = W / 2;
+  player.x = Math.max(40, Math.min(W - 40, player.x));
+}
+
+function createBalloons() {
+  balloons = [];
+  const charOptions = CHARS.filter((_, i) => i !== player.charIdx);
+  // distribute charOptions across balloon slots
+  const totalBalloons = BALLOON_ROWS * BALLOON_COLS;
+  const facePool = [];
+  while (facePool.length < totalBalloons) {
+    charOptions.forEach(c => facePool.push(c));
+  }
+  // shuffle
+  for (let i = facePool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [facePool[i], facePool[j]] = [facePool[j], facePool[i]];
+  }
+
+  const startX = W * 0.1;
+  const endX = W * 0.9;
+  const startY = 80;
+  const spacingX = (endX - startX) / (BALLOON_COLS - 1);
+  const spacingY = (BALLOON_RADIUS * 2 + 30);
+
+  for (let row = 0; row < BALLOON_ROWS; row++) {
+    for (let col = 0; col < BALLOON_COLS; col++) {
+      const name = facePool[row * BALLOON_COLS + col];
+      const charIdx = CHARS.indexOf(name);
+      balloons.push({
+        x: startX + col * spacingX + (row % 2 === 1 ? spacingX * 0.5 : 0),
+        y: startY + row * spacingY + BALLOON_RADIUS,
+        charIdx,
+        alive: true,
+        wobble: 0,
+        wobbleT: Math.random() * Math.PI * 2,
+        scale: 1,
+        // pop animation
+        popping: false,
+        popT: 0,
+      });
+    }
+  }
+}
+
+function startRound() {
+  // pick random player
+  player.charIdx = Math.floor(Math.random() * CHARS.length);
+  player.x = W / 2;
+  player.y = H - 120;
+
+  // pick ball face (not player)
+  const others = CHARS.filter((_, i) => i !== player.charIdx);
+  ball.charIdx = CHARS.indexOf(others[Math.floor(Math.random() * others.length)]);
+  ball.active = false;
+  ballHeld = true;
+  aimAngle = -Math.PI / 2;
+
+  createBalloons();
+  particles = [];
+  gameActive = true;
+}
+
+// ─── THROW ────────────────────────────────────────────────────────────────────
+function throwBall() {
+  if (!ballHeld) return;
+  const armX = Math.cos(aimAngle) * 48;
+  const armY = Math.sin(aimAngle) * 48;
+  ball.x = player.x + 18 + armX;
+  ball.y = player.y + 20 + armY;
+  ball.vx = Math.cos(aimAngle) * THROW_POWER;
+  ball.vy = Math.sin(aimAngle) * THROW_POWER;
+  ball.active = true;
+  ballHeld = false;
+  playThrow();
+}
+
+// ─── COLLISION ────────────────────────────────────────────────────────────────
+function checkCollisions() {
+  if (!ball.active) return;
+  const hit = [];
+  for (const b of balloons) {
+    if (!b.alive || b.popping) continue;
+    const dx = ball.x - b.x;
+    const dy = ball.y - b.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < BALL_RADIUS + BALLOON_RADIUS * 0.9) {
+      hit.push(b);
+    }
+  }
+  if (hit.length === 0) return;
+  // pop all same-face balloons
+  const matchCharIdx = ball.charIdx;
+  let popped = 0;
+  if (hit.some(b => b.charIdx === matchCharIdx)) {
+    // pop all alive balloons with that face
+    for (const b of balloons) {
+      if (b.alive && b.charIdx === matchCharIdx) {
+        b.alive = false;
+        b.popping = true;
+        b.popT = 0;
+        spawnParticles(b.x, b.y, COLORS[b.charIdx % COLORS.length]);
+        popped++;
+      }
+    }
+    playPop();
+    score += popped * 10;
+    document.getElementById('score').textContent = '⭐ ' + score;
+    // next ball face from remaining alive faces
+    const aliveCharIdxs = [...new Set(balloons.filter(b => b.alive).map(b => b.charIdx))];
+    if (aliveCharIdxs.length === 0) {
+      // win!
+      setTimeout(showWin, 800);
+      ball.active = false;
+      ballHeld = false;
+      return;
+    }
+    ball.charIdx = aliveCharIdxs[Math.floor(Math.random() * aliveCharIdxs.length)];
+  } else {
+    // wrong face - bounce back
+    ball.vy = -Math.abs(ball.vy) * 0.6;
+    ball.vx *= -0.5;
+  }
+  // return ball after collision
+  ball.active = false;
+  setTimeout(() => {
+    ballHeld = true;
+    aimAngle = -Math.PI / 2;
+  }, 600);
+}
+
+// ─── WIN ──────────────────────────────────────────────────────────────────────
+function showWin() {
+  playWin();
+  const ov = document.getElementById('overlay');
+  ov.innerHTML = `
+    <h1>🎉 You Win!</h1>
+    <p>Score: ⭐ ${score}</p>
+    <button id="startBtn">🎈 Play Again</button>
+  `;
+  ov.style.display = 'flex';
+  document.getElementById('startBtn').onclick = () => {
+    score = 0;
+    document.getElementById('score').textContent = '⭐ 0';
+    ov.style.display = 'none';
+    startRound();
+  };
+}
+
+// ─── UPDATE ───────────────────────────────────────────────────────────────────
+function update() {
+  if (!gameActive) return;
+
+  // player movement
+  if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+    player.x = Math.max(40, player.x - PLAYER_SPEED);
+  }
+  if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+    player.x = Math.min(W - 40, player.x + PLAYER_SPEED);
+  }
+
+  // aim
+  const AIM_SPEED = 0.04;
+  const MIN_ANGLE = -Math.PI * 0.95;
+  const MAX_ANGLE = -Math.PI * 0.05;
+  if (keys['ArrowUp'] || keys['w']) {
+    aimAngle = Math.max(MIN_ANGLE, aimAngle - AIM_SPEED);
+  }
+  if (keys['ArrowDown'] || keys['s']) {
+    aimAngle = Math.min(MAX_ANGLE, aimAngle + AIM_SPEED);
+  }
+
+  // throw
+  if ((keys[' '] || keys['ArrowUp']) && ballHeld && !keys['_throwCooldown']) {
+    if (keys['ArrowUp']) throwBall();
+  }
+
+  // ball physics
+  if (ball.active) {
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+    ball.vy += GRAVITY;
+    ball.vx *= 0.995;
+
+    // walls
+    if (ball.x < BALL_RADIUS) { ball.x = BALL_RADIUS; ball.vx = Math.abs(ball.vx) * 0.8; }
+    if (ball.x > W - BALL_RADIUS) { ball.x = W - BALL_RADIUS; ball.vx = -Math.abs(ball.vx) * 0.8; }
+    // ceiling
+    if (ball.y < BALL_RADIUS) { ball.y = BALL_RADIUS; ball.vy = Math.abs(ball.vy) * 0.7; }
+    // fell below screen
+    if (ball.y > H + 50) {
+      ball.active = false;
+      setTimeout(() => { ballHeld = true; aimAngle = -Math.PI / 2; }, 400);
+    }
+
+    checkCollisions();
+  }
+
+  // wobble balloons
+  balloons.forEach(b => {
+    if (b.alive) {
+      b.wobbleT += 0.02;
+      b.wobble = Math.max(0, b.wobble - 0.05);
+    }
+    if (b.popping) {
+      b.popT += 0.08;
+      if (b.popT > 1) b.popping = false;
+    }
+  });
+
+  updateParticles();
+}
+
+// ─── DRAW ─────────────────────────────────────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // sky gradient
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+  skyGrad.addColorStop(0, '#87CEEB');
+  skyGrad.addColorStop(0.7, '#C8E6FF');
+  skyGrad.addColorStop(1, '#90EE90');
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  // clouds
+  drawClouds();
+
+  // ground
+  ctx.fillStyle = '#4CAF50';
+  ctx.fillRect(0, H - 40, W, 40);
+  ctx.fillStyle = '#388E3C';
+  ctx.fillRect(0, H - 42, W, 6);
+
+  // balloons
+  balloons.forEach(b => {
+    if (b.alive) {
+      drawBalloon(b);
+    } else if (b.popping) {
+      // scale-up pop
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      const s = 1 + b.popT * 0.8;
+      ctx.scale(s, s);
+      ctx.globalAlpha = 1 - b.popT;
+      drawBalloonShape(b);
+      ctx.restore();
+    }
+  });
+
+  // particles
+  drawParticles();
+
+  // aim line
+  if (ballHeld) drawAimLine();
+
+  // player
+  drawPlayer();
+
+  // ball
+  drawBall();
+}
+
+function drawBalloonShape(b) {
+  const r = BALLOON_RADIUS;
+  const col = COLORS[b.charIdx % COLORS.length];
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r * 0.88, r, 0, 0, Math.PI * 2);
+  ctx.fillStyle = col;
+  ctx.fill();
+}
+
+let cloudX = [0.1, 0.35, 0.6, 0.8];
+let cloudY = [0.08, 0.05, 0.12, 0.07];
+function drawClouds() {
+  cloudX = cloudX.map(x => (x + 0.0001) % 1.1);
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  cloudX.forEach((cx, i) => {
+    const x = cx * W;
+    const y = cloudY[i] * H;
+    drawCloud(x, y, 60 + i * 15);
+  });
+}
+function drawCloud(x, y, r) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.arc(x + r, y - r * 0.4, r * 0.75, 0, Math.PI * 2);
+  ctx.arc(x + r * 1.8, y, r * 0.85, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// ─── LOOP ─────────────────────────────────────────────────────────────────────
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ─── INPUT ────────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) {
+    e.preventDefault();
+  }
+  if (e.key === 'ArrowUp' && gameActive && ballHeld) {
+    throwBall();
+  }
+  if (e.key === ' ' && gameActive && ballHeld) {
+    throwBall();
+  }
+});
+document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// Touch controls
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (e.touches.length > 0) {
+    touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    lastTouchX = e.touches[0].clientX;
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (e.touches.length > 0 && gameActive) {
+    const tx = e.touches[0].clientX;
+    const dx = tx - lastTouchX;
+    player.x = Math.max(40, Math.min(W - 40, player.x + dx));
+    lastTouchX = tx;
+
+    // Aim: vertical swipe direction on upper half
+    const ty = e.touches[0].clientY;
+    if (ty < H * 0.5 && touchStart) {
+      const dy = ty - touchStart.y;
+      if (dy < 0) {
+        aimAngle = Math.max(-Math.PI * 0.95, aimAngle - 0.03);
+      }
+    }
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  if (gameActive && ballHeld) {
+    throwBall();
+  }
+  touchStart = null;
+}, { passive: false });
+
+// Mute
+document.getElementById('muteBtn').onclick = () => {
+  muted = !muted;
+  document.getElementById('muteBtn').textContent = muted ? '🔇' : '🔊';
+  if (!muted && !audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+};
+
+// Start button
+document.getElementById('startBtn').onclick = () => {
+  document.getElementById('overlay').style.display = 'none';
+  score = 0;
+  document.getElementById('score').textContent = '⭐ 0';
+  // Resume audio on first interaction
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch(e) {}
+  startRound();
+};
+
+window.addEventListener('resize', resize);
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+canvas = document.getElementById('gameCanvas');
+ctx = canvas.getContext('2d');
+resize();
+loadImages(() => {
+  loop();
+});
+</script>
+</body>
+</html>
