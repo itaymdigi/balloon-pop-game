@@ -226,7 +226,7 @@ function attachAt(r,c,ci){
 // ── FIND ATTACH CELL ──────────────────────────────────────────────────────────
 function findAttachCell(bx,by,hitR,hitC){
   // Look for empty neighbor of the hit cell closest to bubble position
-  const cands=neighbors(hitR,hitC).filter(([r,c])=>grid[r]?.[c]===−1||grid[r]?.[c]===-1);
+  const cands=neighbors(hitR,hitC).filter(([r,c])=>grid[r]?.[c]===-1);
   // also check if cell itself is free (edge case after chain pops)
   if(grid[hitR][hitC]===-1) cands.push([hitR,hitC]);
 
