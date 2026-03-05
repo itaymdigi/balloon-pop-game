@@ -232,34 +232,24 @@ function attachAt(r,c,ci){
   if(!grid.some(row=>row.some(v=>v!==-1))) setTimeout(levelWin,700);
 }
 
-// ── FIND ATTACH CELL ──────────────────────────────────────────────────────────
-function findAttachCell(bx,by,hitR,hitC){
-  // Ensure the row below exists so bottom-row hits always have empty neighbors
-  ensureRow(hitR+1);
-  // Look for empty neighbor of the hit cell closest to bubble position
-  const cands=neighbors(hitR,hitC).filter(([r,c])=>grid[r]?.[c]===-1);
-  // also check if cell itself is free (edge case after chain pops)
-  if(grid[hitR][hitC]===-1) cands.push([hitR,hitC]);
-
+// ── ATTACH BEST SLOT ─────────────────────────────────────────────────────────
+// Finds the closest valid empty cell to the flying bubble and attaches there.
+function attachBestSlot(){
+  ensureRow(grid.length+1); // ensure empty rows exist at bottom
   let best=null,bestD=Infinity;
-  cands.forEach(([r,c])=>{
+  grid.forEach((row,r)=>row.forEach((v,c)=>{
+    if(v!==-1)return; // must be empty
+    // must touch an occupied cell or be in row 0
+    const hasN=r===0||neighbors(r,c).some(([nr,nc])=>{
+      const val=grid[nr]?.[nc];
+      return val!==undefined&&val!==-1;
+    });
+    if(!hasN)return;
     const{x,y}=cellXY(r,c);
-    const d=(bx-x)**2+(by-y)**2;
+    const d=(fly.x-x)**2+(fly.y-y)**2;
     if(d<bestD){bestD=d;best=[r,c];}
-  });
-  if(best) attachAt(best[0],best[1],fly.charIdx);
-  else {
-    // fallback: find closest empty cell in entire grid near bubble
-    bestD=Infinity; best=null;
-    grid.forEach((row,r)=>row.forEach((v,c)=>{
-      if(v!==-1)return;
-      const{x,y}=cellXY(r,c);
-      const d=(bx-x)**2+(by-y)**2;
-      const hasN=r===0||neighbors(r,c).some(([nr,nc])=>grid[nr]?.[nc]!==-1&&grid[nr][nc]!==undefined);
-      if(hasN&&d<bestD){bestD=d;best=[r,c];}
-    }));
-    if(best) attachAt(best[0],best[1],fly.charIdx);
-  }
+  }));
+  if(best)attachAt(best[0],best[1],fly.charIdx);
 }
 
 // ── TRY ATTACH ───────────────────────────────────────────────────────────────
@@ -268,30 +258,19 @@ let SHOOT_ZONE = 130; // pixels from bottom for shooter area
 function tryAttach(){
   if(!fly)return false;
   // hit top wall
-  if(fly.y-BR<=GT+RH){
-    let best=null,bestD=Infinity;
-    grid.forEach((row,r)=>row.forEach((v,c)=>{
-      if(v!==-1)return;
-      const{x,y}=cellXY(r,c);
-      const d=(fly.x-x)**2+(fly.y-y)**2;
-      const hasN=r===0||neighbors(r,c).some(([nr,nc])=>grid[nr]?.[nc]!==-1&&grid[nr][nc]!==undefined);
-      if(hasN&&d<bestD){bestD=d;best=[r,c];}
-    }));
-    if(best)attachAt(best[0],best[1],fly.charIdx);
-    return true;
-  }
-  // hit a grid bubble
+  if(fly.y-BR<=GT+RH){attachBestSlot();return true;}
+  // find NEAREST occupied bubble within touching distance (not first found)
+  let hitD=Infinity;
   for(let r=0;r<grid.length;r++){
     for(let c=0;c<cols(r);c++){
       if(grid[r][c]===-1)continue;
       const{x,y}=cellXY(r,c);
       const dx=fly.x-x,dy=fly.y-y;
-      if(dx*dx+dy*dy<(BR*2.1)**2){
-        findAttachCell(fly.x,fly.y,r,c);
-        return true;
-      }
+      const d=dx*dx+dy*dy;
+      if(d<(BR*2.0)**2&&d<hitD)hitD=d;
     }
   }
+  if(hitD<Infinity){attachBestSlot();return true;}
   return false;
 }
 
